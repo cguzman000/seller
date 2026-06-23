@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -176,9 +178,9 @@ class _SellerBottomNavigationBarState extends State<SellerBottomNavigationBar> {
       case 2: page = PaymentsPage(user: widget.user, businessId: widget.businessId, sellerId: widget.sellerId, role: effectiveRole); break;
       case 3: page = CustomersPage(user: widget.user, businessId: widget.businessId, role: effectiveRole, sellerId: widget.sellerId); break;
       case 4: page = ProductsPage(user: widget.user, businessId: widget.businessId, role: effectiveRole, sellerId: widget.sellerId); break;
-      case 5: page = OffersPage(user: widget.user, businessId: widget.businessId); break;
-      case 6: page = StockPage(user: widget.user, businessId: widget.businessId); break;
-      case 7: page = SuppliersPage(user: widget.user, businessId: widget.businessId); break;
+      case 5: page = OffersPage(user: widget.user, businessId: widget.businessId, role: '',); break;
+      case 6: page = StockPage(user: widget.user, businessId: widget.businessId, role: effectiveRole, sellerId: widget.sellerId); break;
+      case 7: page = SuppliersPage(user: widget.user, businessId: widget.businessId, role: '',); break;
       //case 8: page = ReportsHubPage(user: widget.user, businessId: widget.businessId, role: effectiveRole, sellerId: widget.sellerId); break;
       default: return;
     }
@@ -666,6 +668,7 @@ class _MyHomePageState extends State<MyHomePage> {
 
   String? _companyLogoUrl;
   late Stream<DocumentSnapshot> _companySettingsStream;
+  StreamSubscription? _companySettingsSubscription;
 
   late String? _filterSellerId;
 
@@ -721,7 +724,7 @@ class _MyHomePageState extends State<MyHomePage> {
     
     _companySettingsStream = _firestoreService.getCompanySettings(widget.businessId);
 
-    _companySettingsStream.listen((snapshot) {
+    _companySettingsSubscription = _companySettingsStream.listen((snapshot) {
       if (snapshot.exists && snapshot.data() != null) {
         final data = snapshot.data() as Map<String, dynamic>;
         setState(() {
@@ -729,6 +732,12 @@ class _MyHomePageState extends State<MyHomePage> {
         });
       }
     });
+  }
+
+  @override
+  void dispose() {
+    _companySettingsSubscription?.cancel();
+    super.dispose();
   }
 
   @override
@@ -869,7 +878,7 @@ class _MyHomePageState extends State<MyHomePage> {
                   MaterialPageRoute(
                     builder: (context) => StockPage(
                       user: widget.user,
-                      businessId: widget.businessId,
+                      businessId: widget.businessId, role: '',
                     ),
                   ),
                 );
@@ -886,6 +895,8 @@ class _MyHomePageState extends State<MyHomePage> {
                     builder: (context) => OffersPage(
                       user: widget.user,
                       businessId: widget.businessId,
+                      role: widget.role,
+                      sellerId: _filterSellerId,
                     ),
                   ),
                 );
@@ -937,6 +948,8 @@ class _MyHomePageState extends State<MyHomePage> {
                       builder: (context) => SuppliersPage(
                         user: widget.user,
                         businessId: widget.businessId,
+                      role: widget.role,
+                      sellerId: widget.sellerId,
                       ),
                     ),
                   );
@@ -1504,7 +1517,7 @@ class _MyHomePageState extends State<MyHomePage> {
                 leading: const Icon(Icons.warning_amber_rounded, color: Colors.amber),
                 title: Text(data['name'] ?? l10n.get('noName')),
                 trailing: Text(l10n.get('stockValue').replaceFirst('{value}', (data['stock'] ?? 0).toString()), style: const TextStyle(fontWeight: FontWeight.bold)),
-                onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => StockPage(user: widget.user, businessId: widget.businessId))),
+                onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => StockPage(user: widget.user, businessId: widget.businessId, role: '',))),
               ),
             );
           },

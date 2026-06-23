@@ -9,7 +9,15 @@ class SuppliersPage extends StatefulWidget {
   final User user;
   final String businessId;
 
-  const SuppliersPage({super.key, required this.user, required this.businessId});
+  final String? role;
+  final String? sellerId;
+
+  const SuppliersPage(
+      {super.key,
+      required this.user,
+      required this.businessId,
+      this.role,
+      this.sellerId});
 
   @override
   State<SuppliersPage> createState() => _SuppliersPageState();
@@ -178,8 +186,9 @@ class _SuppliersPageState extends State<SuppliersPage> {
       bottomNavigationBar: SellerBottomNavigationBar(
         user: widget.user,
         businessId: widget.businessId,
-        sellerId: widget.user.uid == widget.businessId ? null : widget.user.uid,
-        currentIndex: 6,
+        role: widget.role,
+        sellerId: widget.sellerId,
+        currentIndex: 7, // Índice correcto para Proveedores
       ),
     );
   }

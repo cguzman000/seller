@@ -10,7 +10,11 @@ class StockPage extends StatefulWidget {
   final User user;
   final String businessId;
 
-  const StockPage({super.key, required this.user, required this.businessId});
+  const StockPage({super.key, required this.user, required this.businessId, String? sellerId, required String role});
+  
+  String? get role => null;
+  
+  String? get sellerId => null;
 
   @override
   State<StockPage> createState() => _StockPageState();
@@ -318,8 +322,9 @@ class _StockPageState extends State<StockPage> {
       bottomNavigationBar: SellerBottomNavigationBar(
         user: widget.user,
         businessId: widget.businessId,
-        sellerId: widget.user.uid == widget.businessId ? null : widget.user.uid,
-        currentIndex: 4,
+        role: widget.role,
+        sellerId: widget.sellerId,
+        currentIndex: 6, // Índice correcto para Stock
         allowSamePageNavigation: true,
       ),
     );

@@ -10,7 +10,15 @@ import 'package:seller/pdf_generator.dart';
 class OffersPage extends StatefulWidget {
   final User user;
   final String businessId;
-  const OffersPage({super.key, required this.user, required this.businessId});
+  final String? role;
+  final String? sellerId;
+  const OffersPage({
+    super.key,
+    required this.user,
+    required this.businessId,
+    required this.role,
+    this.sellerId,
+  });
 
   @override
   State<OffersPage> createState() => _OffersPageState();
@@ -274,15 +282,14 @@ class _OffersPageState extends State<OffersPage> {
         tooltip: 'Añadir Oferta',
         child: const Icon(Icons.add),
       ),
-      bottomNavigationBar: widget.user.uid != widget.businessId
-          ? SellerBottomNavigationBar(
-              user: widget.user,
-              businessId: widget.businessId,
-              sellerId: widget.user.uid,
-              currentIndex: 3,
-              allowSamePageNavigation: true,
-            )
-          : null,
+      bottomNavigationBar: SellerBottomNavigationBar(
+        user: widget.user,
+        businessId: widget.businessId,
+        role: widget.role,
+        sellerId: widget.sellerId,
+        currentIndex: 5, // Índice para Ofertas
+        allowSamePageNavigation: true,
+      ),
     );
   }
 

@@ -1158,9 +1158,9 @@ class _MyHomePageState extends State<MyHomePage> {
                           // Aquí puedes controlar el tamaño exacto sin restricciones
                           Image.asset('assets/icon.png', width: 100, height: 100),
                           const SizedBox(height: 16),
-                          const Text('Seller App', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+                          const Text('Seller', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
                           Text('${l10n.get('version')} 1.0.0'),
-                          const Text('© 2025 Seller App'),
+                          const Text('© 2025 Seller Inc.'),
                           const SizedBox(height: 16),
                           Text(l10n.get('systemDescription'), textAlign: TextAlign.center),
                         ],

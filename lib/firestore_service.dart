@@ -97,13 +97,24 @@ class FirestoreService {
 
   /// Crea el perfil de administrador para el usuario actual (Abrir su propio negocio).
   Future<void> createOwnBusiness(User user) async {
-    await _db.collection('users').doc(user.uid).set({
+    final batch = _db.batch();
+
+    final userRef = _db.collection('users').doc(user.uid);
+    batch.set(userRef, {
       'name': (user.displayName ?? 'Admin').toUpperCase(),
       'email': user.email,
       'role': 'admin',
       'businessId': user.uid, // El admin pertenece a su propio negocio
       'createdAt': FieldValue.serverTimestamp(),
     }, SetOptions(merge: true));
+
+    // También creamos un documento de configuración inicial
+    final settingsRef = _db.collection('company_settings').doc(user.uid);
+    batch.set(settingsRef, {
+      'is_initial_setup': true, // Bandera para la redirección
+    });
+
+    await batch.commit();
   }
 
   /// Añade un nuevo producto a la colección 'products'.

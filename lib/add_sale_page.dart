@@ -514,11 +514,12 @@ class _AddSalePageState extends State<AddSalePage> {
                         paymentType,
                         sellerId: widget.sellerId,
                         sellerName: _effectiveSellerName,
-                        customerId: _selectedCustomerId,
+                        customerId: _selectedCustomerId, // ID del cliente
+                        customerName: _selectedCustomerName, // Nombre del cliente
                       );
                       if (mounted) { // Luego, comprueba si el widget sigue montado
                         navigator.pop();
-                        messenger.showSnackBar(SnackBar(content: Text(l10n.get('settingsSaved'))));
+                        messenger.showSnackBar(SnackBar(content: Text('${l10n.get('paymentLabel')} ${l10n.get('settingsSaved')}')));
                       }
                     }
                   },

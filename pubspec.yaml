@@ -51,6 +51,8 @@ dependencies:
   mobile_scanner: ^7.1.4
 
   fl_chart: ^0.68.0
+  showcaseview: ^5.1.0
+  shared_preferences: ^2.5.5
 dev_dependencies:
   flutter_test:
     sdk: flutter

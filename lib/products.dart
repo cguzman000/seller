@@ -1091,7 +1091,7 @@ class _ProductDialogState extends State<ProductDialog> {
     if (settingsDoc.exists) {
       final settingsData = settingsDoc.data() as Map<String, dynamic>?;
       _vatRateFromSettings = (settingsData?['vat_rate'] as num? ?? 21.0) / 100.0;
-      _defaultMarginFromSettings = (settingsData?['default_margin'] as num? ?? 30.0).toDouble();
+      _defaultMarginFromSettings = (settingsData?['profit_margin'] as num? ?? 30.0).toDouble();
     }
   }
 

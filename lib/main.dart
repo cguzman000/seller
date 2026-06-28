@@ -399,10 +399,26 @@ class _SessionResolverState extends State<SessionResolver> {
   final FirestoreService _firestoreService = FirestoreService();
   Map<String, dynamic>? _selectedProfile;
 
-  void _onProfileSelected(Map<String, dynamic> profile) {
-    setState(() {
-      _selectedProfile = profile;
-    });
+  Future<void> _onProfileSelected(Map<String, dynamic> profile) async {
+    // Si el perfil es de admin, comprobamos si es la configuración inicial.
+    if (profile['role'] == 'admin') {
+      final settingsDoc = await _firestoreService.getCompanySettingsOnce(profile['businessId']);
+      if (settingsDoc.exists && (settingsDoc.data() as Map<String, dynamic>)['is_initial_setup'] == true) {
+        // Si es la configuración inicial, navegamos a la página de ajustes.
+        // Usamos pushReplacement para que el usuario no pueda "volver" a la selección de perfil.
+        if (mounted) {
+          Navigator.of(context).pushReplacement(
+            MaterialPageRoute(
+              builder: (context) => SettingsPage(user: widget.user, isInitialSetup: true),
+            ),
+          );
+        }
+        return; // Salimos para no actualizar el estado y mostrar MyHomePage
+      }
+    }
+
+    // Si no es la configuración inicial, procedemos como antes.
+    setState(() => _selectedProfile = profile);
   }
 
   @override
@@ -1122,7 +1138,7 @@ class _MyHomePageState extends State<MyHomePage> {
                   Navigator.push(
                     context,
                     MaterialPageRoute(
-                      builder: (context) => SettingsPage(user: widget.user),
+                      builder: (context) => SettingsPage(user: widget.user, isInitialSetup: false),
                     ),
                   );
                 },
@@ -1227,10 +1243,10 @@ class _MyHomePageState extends State<MyHomePage> {
         () => Navigator.push(context, MaterialPageRoute(builder: (context) => SalesAndPaymentsReportPage(businessId: widget.businessId, sellerId: _filterSellerId, user: widget.user)))),
       _ReportItem(l10n.get('salesByProduct'), Icons.pie_chart, Colors.purple, 
         () => Navigator.push(context, MaterialPageRoute(builder: (context) => SalesByProductReportPage(businessId: widget.businessId, sellerId: _filterSellerId, user: widget.user)))),
-      _ReportItem(l10n.get('customerRanking'), Icons.star, Colors.teal, 
-        () => Navigator.push(context, MaterialPageRoute(builder: (context) => CustomerRankingPage(businessId: widget.businessId, sellerId: _filterSellerId, user: widget.user)))),
       _ReportItem(l10n.get('accountsReceivable'), Icons.money_off, Colors.red, 
         () => Navigator.push(context, MaterialPageRoute(builder: (context) => AccountsReceivablePage(businessId: widget.businessId, sellerId: _filterSellerId, user: widget.user)))),
+      _ReportItem(l10n.get('customerRanking'), Icons.star, Colors.teal, 
+        () => Navigator.push(context, MaterialPageRoute(builder: (context) => CustomerRankingPage(businessId: widget.businessId, sellerId: _filterSellerId, user: widget.user)))),
       _ReportItem(l10n.get('stockReport'), Icons.inventory, Colors.orange, 
         () => Navigator.push(context, MaterialPageRoute(builder: (context) => StockReportPage(businessId: widget.businessId, user: widget.user)))),
     ];

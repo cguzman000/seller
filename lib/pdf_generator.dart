@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:intl/intl.dart';
 import 'package:seller/app_localizations.dart';
@@ -888,5 +890,143 @@ class PdfGenerator {
         ],
       ),
     );
+  }
+
+  static Future<void> generateSalesByProductReport({
+    required AppLocalizations l10n,
+    required String businessId,
+    required List<Map<String, dynamic>> productSales,
+    required double totalSales,
+    required Uint8List chartImage,
+    DateTime? startDate,
+    DateTime? endDate,
+  }) async {
+    final pdf = pw.Document();
+    final now = DateTime.now();
+    final formattedDate = DateFormat('dd/MM/yyyy HH:mm').format(now);
+    final baseColor = PdfColors.blue900;
+    final firestoreService = FirestoreService();
+
+    // Obtener configuración de la empresa
+    String? companyName;
+    String? companyLogoUrl;
+    try {
+      final settingsDoc = await firestoreService.getCompanySettings(businessId).first;
+      if (settingsDoc.exists) {
+        final settingsData = settingsDoc.data() as Map<String, dynamic>;
+        companyName = settingsData['company_name'];
+        companyLogoUrl = settingsData['company_logo_url'];
+      }
+    } catch (_) {}
+
+    pw.ImageProvider? logoImage;
+    if (companyLogoUrl != null && companyLogoUrl.isNotEmpty) {
+      try {
+        logoImage = await networkImage(companyLogoUrl);
+      } catch (_) {}
+    }
+
+    String periodText = l10n.get('all');
+    if (startDate != null && endDate != null) {
+      periodText = '${DateFormat('dd/MM/yyyy').format(startDate)} - ${DateFormat('dd/MM/yyyy').format(endDate)}';
+    }
+
+    final chartProvider = pw.MemoryImage(chartImage);
+
+    pdf.addPage(
+      pw.MultiPage(
+        pageFormat: PdfPageFormat.a4,
+        header: (context) => pw.Column(
+          crossAxisAlignment: pw.CrossAxisAlignment.start,
+          children: [
+            pw.Row(
+              children: [
+                if (logoImage != null) ...[
+                  pw.Image(logoImage, width: 40, height: 40),
+                  pw.SizedBox(width: 10),
+                ],
+                pw.Column(
+                  crossAxisAlignment: pw.CrossAxisAlignment.start,
+                  children: [
+                    pw.Text(companyName ?? l10n.get('salesByProduct'), style: pw.TextStyle(fontSize: 20, fontWeight: pw.FontWeight.bold, color: baseColor)),
+                    pw.Text('${l10n.get('filter')}: $periodText', style: const pw.TextStyle(fontSize: 12)),
+                  ],
+                ),
+              ],
+            ),
+            pw.SizedBox(height: 10),
+            pw.Divider(color: baseColor),
+            pw.SizedBox(height: 10),
+          ],
+        ),
+        build: (context) => [
+          pw.Header(level: 1, text: l10n.get('salesByProduct')),
+          pw.SizedBox(height: 10),
+          pw.Center(
+            child: pw.SizedBox(
+              width: 300,
+              height: 300,
+              child: pw.Image(chartProvider),
+            ),
+          ),
+          pw.SizedBox(height: 20),
+          pw.TableHelper.fromTextArray(
+            headers: ['', l10n.get('productHeader'), l10n.get('quantityHeader'), l10n.get('total')],
+            data: productSales.asMap().entries.map((entry) {
+              final index = entry.key;
+              final p = entry.value;
+              final List<PdfColor> pdfPieColors = [
+                PdfColors.blue400,
+                PdfColors.green400,
+                PdfColors.orange400,
+                PdfColors.red400,
+                PdfColors.purple400,
+                PdfColors.grey400,
+              ];
+              final color = pdfPieColors[index % pdfPieColors.length];
+
+              return [
+                pw.Container(
+                  width: 12,
+                  height: 12,
+                  decoration: pw.BoxDecoration(color: color, shape: pw.BoxShape.circle),
+                ),
+                pw.Text(p['name'].toString().toUpperCase(), textAlign: pw.TextAlign.left),
+                pw.Text(p['quantity'].toStringAsFixed(0), textAlign: pw.TextAlign.right),
+                pw.Text('\$${NumberFormat.currency(locale: 'es_CL', symbol: '', decimalDigits: 0).format(p['total'])}', textAlign: pw.TextAlign.right),
+              ];
+            }).toList(),
+            headerStyle: pw.TextStyle(fontWeight: pw.FontWeight.bold, color: PdfColors.white),
+            headerDecoration: pw.BoxDecoration(color: baseColor),
+            cellAlignment: pw.Alignment.centerLeft,
+            cellAlignments: {
+              1: pw.Alignment.centerRight,
+              2: pw.Alignment.centerLeft,
+              3: pw.Alignment.centerRight,
+            },
+            columnWidths: {
+              0: const pw.FixedColumnWidth(20),
+              1: const pw.FlexColumnWidth(3),
+            },
+            oddRowDecoration: const pw.BoxDecoration(color: PdfColors.grey100),
+          ),
+          pw.SizedBox(height: 20),
+          pw.Container(
+            alignment: pw.Alignment.centerRight,
+            child: pw.Text(
+              '${l10n.get('totalSales')}: \$${NumberFormat.currency(locale: 'es_CL', symbol: '', decimalDigits: 0).format(totalSales)}',
+              style: pw.TextStyle(fontSize: 14, fontWeight: pw.FontWeight.bold, color: baseColor),
+            ),
+          ),
+        ],
+        footer: (context) => pw.Container(
+          alignment: pw.Alignment.centerRight,
+          margin: const pw.EdgeInsets.only(top: 10),
+          child: pw.Text('Generado: $formattedDate - Página ${context.pageNumber}', style: const pw.TextStyle(color: PdfColors.grey, fontSize: 8)),
+        ),
+      ),
+    );
+
+    await Printing.layoutPdf(onLayout: (format) => pdf.save());
   }
 }

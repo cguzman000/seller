@@ -153,10 +153,8 @@ class _CustomersPageState extends State<CustomersPage> {
                     currentCustomerId: customer?.id,
                   );
 
-                  if (!mounted) return;
-
-                  if (!isUnique) {
-                    ScaffoldMessenger.of(context).showSnackBar(
+                  if (!isUnique && context.mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar( // This context is from the dialog
                       SnackBar(
                         content: Text(l10n.get('customerExists')),
                         backgroundColor: Colors.red,
@@ -172,7 +170,7 @@ class _CustomersPageState extends State<CustomersPage> {
                     await _firestoreService.addCustomer(widget.businessId, nameController.text, emailController.text, phoneController.text, addressController.text, dniController.text, contactController.text, cityController.text, sellerId: selectedSellerId, creatorName: widget.user.displayName ?? (widget.role == 'admin' ? 'Admin' : 'Vendedor'));
                   }
 
-                  if (!mounted) return;
+                  if (!context.mounted) return;
                   Navigator.of(context).pop();
                 }
               },

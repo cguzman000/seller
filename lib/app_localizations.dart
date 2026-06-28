@@ -15,9 +15,11 @@ class AppLocalizations {
 
   static final Map<String, Map<String, String>> _localizedValues = {
     'es': {
+      'initialSetupTitle': 'Configuración Inicial del Negocio',
+      'initialSetupWelcome': '¡Bienvenido! Completa los datos de tu negocio para comenzar.',
       'settingsTitle': 'Configuración de la Empresa',
       'home': 'Inicio',
-      'appName': 'Seller App',
+      'appName': 'Seller',
       'save': 'Guardar',
       'companyLogo': 'Logo de la Empresa',
       'uploadLogo': 'Subir Logo',
@@ -37,7 +39,7 @@ class AppLocalizations {
       'companyAddress': 'Dirección de la Empresa',
       'companyPhone': 'Teléfono de la Empresa',
       'vatRate': 'Tasa de IVA (%)',
-      'vatRateHint': 'Ej: 21.0',
+      'vatRateHint': 'Ej: 19.0',
       'profitMarginHint': 'Ej: 30.0',
       'decimalPlacesHint': 'Ej: 0 o 2',
       'decimalPlaces': 'Número de Decimales',
@@ -212,7 +214,7 @@ class AppLocalizations {
       'paymentDeleted': 'Pago eliminado',
       'selectPaymentMode': 'Seleccionar Modo de Pago',
       'paySpecificSales': 'Pagar ventas específicas',
-      'payOnAccount': 'Abonar a cuenta',
+      'payOnAccount': 'Abonar cuenta total',//dsfsdfsf
       'totalPending': 'Total Pendiente',
       'amountToPay': 'Monto a Pagar',
       'filter': 'Filtrar',
@@ -304,9 +306,11 @@ class AppLocalizations {
       'confirmDeleteSale': '¿Estás seguro de que quieres eliminar esta venta? Esta acción no se puede deshacer.',
     },
     'en': {
+      'initialSetupTitle': 'Initial Business Setup',
+      'initialSetupWelcome': 'Welcome! Complete your business details to get started.',
       'settingsTitle': 'Company Settings',
       'home': 'Home',
-      'appName': 'Seller App',
+      'appName': 'Seller',
       'save': 'Save',
       'companyLogo': 'Company Logo',
       'uploadLogo': 'Upload Logo',
@@ -501,7 +505,7 @@ class AppLocalizations {
       'paymentDeleted': 'Payment deleted',
       'selectPaymentMode': 'Select Payment Mode',
       'paySpecificSales': 'Pay specific sales',
-      'payOnAccount': 'Pay on account',
+      'payOnAccount': 'Pay total account',//fgdg
       'totalPending': 'Total Pending',
       'amountToPay': 'Amount to Pay',
       'filter': 'Filter',

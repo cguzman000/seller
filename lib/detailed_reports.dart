@@ -8,6 +8,9 @@ import 'main.dart'; // Importar para usar SellerBottomNavigationBar
 import 'util/text_formatter.dart';
 import 'app_localizations.dart';
 import 'pdf_generator.dart';
+import 'dart:typed_data';
+import 'package:flutter/rendering.dart';
+import 'dart:ui' as ui;
 
 // Formateadores globales para los reportes
 final NumberFormat currencyFormat = NumberFormat.currency(
@@ -50,6 +53,8 @@ class _SalesByProductReportPageState extends State<SalesByProductReportPage> {
   String? _filterSellerId;
   String? _filterProductId;
   int _touchedIndex = -1;
+  final GlobalKey _chartKey = GlobalKey();
+  List<Map<String, dynamic>> _productSales = [];
 
   Future<void> _showProductPicker() async {
     final result = await showDialog<Map<String, dynamic>?>(
@@ -78,13 +83,47 @@ class _SalesByProductReportPageState extends State<SalesByProductReportPage> {
     }
   }
 
+  Future<void> _printReport() async {
+    final l10n = AppLocalizations.of(context);
+    if (_productSales.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(l10n.get('noSalesInPeriod'))),
+      );
+      return;
+    }
+
+    try {
+      // Capturar el gráfico como una imagen
+      RenderRepaintBoundary boundary = _chartKey.currentContext!.findRenderObject() as RenderRepaintBoundary;
+      ui.Image image = await boundary.toImage(pixelRatio: 3.0);
+      ByteData? byteData = await image.toByteData(format: ui.ImageByteFormat.png);
+      Uint8List chartImage = byteData!.buffer.asUint8List();
+
+      await PdfGenerator.generateSalesByProductReport(
+        l10n: l10n,
+        businessId: widget.businessId,
+        productSales: _productSales,
+        totalSales: _productSales.fold(0.0, (total, item) => total + (item['total'] as double)),
+        chartImage: chartImage,
+        startDate: _startDate,
+        endDate: _endDate,
+      );
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('${l10n.get('error')}: $e'), backgroundColor: Colors.red),
+        );
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     final endQueryDate = DateTime(_endDate.year, _endDate.month, _endDate.day, 23, 59, 59);
 
     return Scaffold(
-      appBar: AppBar(title: Text(l10n.get('salesByProduct'))),
+      appBar: AppBar(title: Text(l10n.get('salesByProduct')), actions: [IconButton(icon: const Icon(Icons.print_outlined), onPressed: _printReport, tooltip: l10n.get('printList'))]),
       body: Column(
         children: [
           // Filtro de Fechas
@@ -154,8 +193,9 @@ class _SalesByProductReportPageState extends State<SalesByProductReportPage> {
                 }
 
                 // Convertir a lista y ordenar por total vendido (descendente)
-                final statsList = productStats.values.toList();
-                statsList.sort((a, b) => b['total'].compareTo(a['total']));
+                _productSales = productStats.values.toList();
+                _productSales.sort((a, b) => b['total'].compareTo(a['total']));
+                final statsList = _productSales;
 
                 if (statsList.isEmpty) {
                   return Center(child: Text(l10n.get('noSalesInPeriod')));
@@ -182,42 +222,45 @@ class _SalesByProductReportPageState extends State<SalesByProductReportPage> {
                 return Column(
                   children: [
                     SizedBox(
-                      height: 220,
-                      child: Card(
-                        elevation: 2,
-                        margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                        child: Padding(
-                          padding: const EdgeInsets.all(16),
-                          child: PieChart(
-                            PieChartData(
-                              pieTouchData: PieTouchData(
-                                touchCallback: (FlTouchEvent event, pieTouchResponse) {
-                                  setState(() {
-                                    if (!event.isInterestedForInteractions || pieTouchResponse == null || pieTouchResponse.touchedSection == null) {
-                                      _touchedIndex = -1;
-                                      return;
-                                    }
-                                    _touchedIndex = pieTouchResponse.touchedSection!.touchedSectionIndex;
-                                  });
-                                },
-                              ),
-                              borderData: FlBorderData(show: false),
-                              sectionsSpace: 2,
-                              centerSpaceRadius: 40,
-                              sections: List.generate(chartStats.length, (i) {
-                                final isTouched = i == _touchedIndex;
-                                final radius = isTouched ? 60.0 : 50.0;
-                                final stat = chartStats[i];
-                                final percentage = totalRevenue > 0 ? (stat['total'] / totalRevenue) * 100 : 0;
+                      height: 250,
+                      child: RepaintBoundary(
+                        key: _chartKey,
+                        child: Card(
+                          elevation: 2,
+                          margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                          child: Padding(
+                            padding: const EdgeInsets.all(16),
+                            child: PieChart(
+                              PieChartData(
+                                pieTouchData: PieTouchData(
+                                  touchCallback: (FlTouchEvent event, pieTouchResponse) {
+                                    setState(() {
+                                      if (!event.isInterestedForInteractions || pieTouchResponse == null || pieTouchResponse.touchedSection == null) {
+                                        _touchedIndex = -1;
+                                        return;
+                                      }
+                                      _touchedIndex = pieTouchResponse.touchedSection!.touchedSectionIndex;
+                                    });
+                                  },
+                                ),
+                                borderData: FlBorderData(show: false),
+                                sectionsSpace: 2,
+                                centerSpaceRadius: 40,
+                                sections: List.generate(chartStats.length, (i) {
+                                  final isTouched = i == _touchedIndex;
+                                  final radius = isTouched ? 60.0 : 50.0;
+                                  final stat = chartStats[i];
+                                  final percentage = totalRevenue > 0 ? (stat['total'] / totalRevenue) * 100 : 0;
 
-                                return PieChartSectionData(
-                                  color: pieColors[i % pieColors.length],
-                                  value: stat['total'],
-                                  title: '${percentage.toStringAsFixed(0)}%',
-                                  radius: radius,
-                                  titleStyle: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.white, shadows: [Shadow(color: Colors.black, blurRadius: 2)]),
-                                );
-                              }),
+                                  return PieChartSectionData(
+                                    color: pieColors[i % pieColors.length],
+                                    value: stat['total'],
+                                    title: '${percentage.toStringAsFixed(0)}%',
+                                    radius: radius,
+                                    titleStyle: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.white, shadows: [Shadow(color: Colors.black, blurRadius: 2)]),
+                                  );
+                                }),
+                              ),
                             ),
                           ),
                         ),
@@ -609,6 +652,7 @@ class _AccountsReceivablePageState extends State<AccountsReceivablePage> {
   final FirestoreService _service = FirestoreService();
   String? _filterSellerId;
   String? _filterCustomerId;
+  List<Map<String, dynamic>> _debtorsList = [];
 
   Future<void> _showCustomerPicker() async {
     final result = await showDialog<Map<String, dynamic>?>(
@@ -622,11 +666,32 @@ class _AccountsReceivablePageState extends State<AccountsReceivablePage> {
     }
   }
 
+  Future<void> _printReport() async {
+    final l10n = AppLocalizations.of(context);
+    if (_debtorsList.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(l10n.get('noPendingDebts'))),
+      );
+      return;
+    }
+
+    try {
+      await PdfGenerator.generateDebtorsReport(
+        businessId: widget.businessId,
+        debtors: _debtorsList,
+      );
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('${l10n.get('error')}: $e')));
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     return Scaffold(
-      appBar: AppBar(title: Text(l10n.get('accountsReceivable'))),
+      appBar: AppBar(title: Text(l10n.get('accountsReceivable')), actions: [IconButton(icon: const Icon(Icons.print_outlined), onPressed: _printReport, tooltip: l10n.get('printList'))]),
       body: Column(
         children: [
           // Filtros
@@ -729,8 +794,8 @@ class _AccountsReceivablePageState extends State<AccountsReceivablePage> {
                 }
               }
 
-              final debtList = customerDebt.values.toList();
-              // Ordenar de mayor deuda a menor
+              _debtorsList = customerDebt.values.toList();
+              final debtList = _debtorsList;
               debtList.sort((a, b) => b['debt'].compareTo(a['debt']));
 
               if (debtList.isEmpty) {

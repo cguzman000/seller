@@ -782,6 +782,7 @@ class _PaymentsPageState extends State<PaymentsPage> {
                 TextButton(onPressed: () => Navigator.pop(dialogContext), child: Text(l10n.get('cancel'))),
                 ElevatedButton(
                   onPressed: () async {
+                    final messenger = ScaffoldMessenger.of(sbContext);
                     Navigator.pop(dialogContext); // Cerrar diálogo
                     try {
                       await _firestoreService.addCustomerPayment(
@@ -794,9 +795,7 @@ class _PaymentsPageState extends State<PaymentsPage> {
                         sellerId: widget.sellerId,
                         sellerName: _effectiveSellerName,
                       );
-                      if (mounted) {
-                        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Pago registrado con éxito')));
-                      }
+                      messenger.showSnackBar(const SnackBar(content: Text('Pago registrado con éxito')));
                     } catch (e) {
                       if (mounted) {
                         showDialog(

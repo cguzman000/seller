@@ -450,6 +450,9 @@ class _SalesPageState extends State<SalesPage> {
   }
 
   void _showCustomerFilterDialog() async {
+    final messenger = ScaffoldMessenger.of(context);
+    final l10n = AppLocalizations.of(context);
+
     final result = await showDialog<DocumentSnapshot>(
       context: context,
       builder: (context) => _CustomerSearchDialog(
@@ -467,8 +470,7 @@ class _SalesPageState extends State<SalesPage> {
       });
     } else if (_filterCustomerId != null) {
       // Opción para limpiar filtro si ya había uno
-      final l10n = AppLocalizations.of(context);
-      ScaffoldMessenger.of(context).showSnackBar(
+      messenger.showSnackBar(
         SnackBar(
           content: Text('${l10n.get('filter')}: $_filterCustomerName'),
           action: SnackBarAction(

@@ -2,12 +2,15 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:seller/firestore_service.dart';
 import 'app_localizations.dart';
+import 'main.dart';
 
 class SettingsPage extends StatefulWidget {
   final User user;
-  const SettingsPage({super.key, required this.user});
+  final bool isInitialSetup;
+  const SettingsPage({super.key, required this.user, required this.isInitialSetup});
 
   @override
   State<SettingsPage> createState() => _SettingsPageState();
@@ -50,7 +53,7 @@ class _SettingsPageState extends State<SettingsPage> {
       final data = settingsDoc.data() as Map<String, dynamic>;
       _companyNameController.text = data['company_name'] ?? '';
       _companyAddressController.text = data['company_address'] ?? '';
-      _vatRateController.text = (data['vat_rate'] ?? '21.0').toString();
+      _vatRateController.text = (data['vat_rate'] ?? '19.0').toString();
       _profitMarginController.text = (data['profit_margin'] ?? '30.0').toString();
       _companyPhoneController.text = data['company_phone'] ?? '';
       _decimalPlacesController.text = (data['decimal_places'] ?? '0').toString();
@@ -133,10 +136,11 @@ class _SettingsPageState extends State<SettingsPage> {
     if (_formKey.currentState!.validate()) {
       final companyName = _companyNameController.text;
       final companyAddress = _companyAddressController.text;
-      final vatRate = double.tryParse(_vatRateController.text) ?? 21.0;
+      final vatRate = double.tryParse(_vatRateController.text) ?? 19.0;
       final profitMargin = double.tryParse(_profitMarginController.text) ?? 30.0;
       final companyPhone = _companyPhoneController.text;
       final decimalPlaces = int.tryParse(_decimalPlacesController.text) ?? 0;
+      final isInitialSetup = widget.isInitialSetup;
 
       await _firestoreService.updateCompanySettings(widget.user.uid, {
         'company_name': companyName,
@@ -145,12 +149,29 @@ class _SettingsPageState extends State<SettingsPage> {
         'profit_margin': profitMargin,
         'company_phone': companyPhone,
         'decimal_places': decimalPlaces,
+        // Si es la configuración inicial, eliminamos la bandera para no volver a redirigir.
+        if (isInitialSetup) 'is_initial_setup': FieldValue.delete(),
       });
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text(AppLocalizations.of(context).get('settingsSaved'))),
         );
+        // Si era la configuración inicial, ahora lo llevamos a la página principal.
+        if (isInitialSetup) {
+          // Obtenemos el perfil para pasarlo a la página de inicio.
+          final profile = (await _firestoreService.getUserProfiles(widget.user)).firstWhere((p) => p['type'] == 'admin');
+          if (!mounted) return;
+          Navigator.of(context).pushAndRemoveUntil(
+            MaterialPageRoute(builder: (context) => MyHomePage(
+              user: widget.user,
+              businessId: profile['businessId'],
+              role: profile['role'],
+              sellerId: profile['sellerId'],
+            )),
+            (route) => false, // Elimina todas las rutas anteriores
+          );
+        }
       }
     }
   }
@@ -159,12 +180,8 @@ class _SettingsPageState extends State<SettingsPage> {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     return Scaffold(
-      appBar: AppBar(
-        title: Text(l10n.get('settingsTitle')),
-        actions: [
-          IconButton(icon: const Icon(Icons.save), onPressed: _saveSettings, tooltip: l10n.get('save')),
-        ],
-      ),
+      appBar:
+          AppBar(title: Text(widget.isInitialSetup ? l10n.get('initialSetupTitle') : l10n.get('settingsTitle')), automaticallyImplyLeading: !widget.isInitialSetup),
       body: Stack(
         children: [
           Form(
@@ -172,6 +189,11 @@ class _SettingsPageState extends State<SettingsPage> {
             child: ListView(
               padding: const EdgeInsets.all(16.0),
               children: [
+                if (widget.isInitialSetup) ...[
+                  Text(l10n.get('initialSetupWelcome'), style: Theme.of(context).textTheme.titleMedium, textAlign: TextAlign.center),
+                  const SizedBox(height: 20),
+                  const Divider(),
+                ],
                 Text(l10n.get('companyLogo'), style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
                 const SizedBox(height: 10),
                 Center(
@@ -229,6 +251,40 @@ class _SettingsPageState extends State<SettingsPage> {
           if (_isLoading)
             Container(color: Colors.black.withValues(alpha: 0.5), child: const Center(child: CircularProgressIndicator())),
         ],
+      ),
+      bottomNavigationBar: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
+          child: Row(
+            children: [
+              Expanded(
+                child: OutlinedButton(
+                  onPressed: widget.isInitialSetup ? null : () => Navigator.of(context).pop(),
+                  style: OutlinedButton.styleFrom(
+                    minimumSize: const Size.fromHeight(54),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  ),
+                  child: Text(l10n.get('cancel').toUpperCase(),
+                      style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: ElevatedButton(
+                  onPressed: _saveSettings,
+                  style: ElevatedButton.styleFrom(
+                    minimumSize: const Size.fromHeight(54),
+                    backgroundColor: Theme.of(context).colorScheme.primary,
+                    foregroundColor: Theme.of(context).colorScheme.onPrimary,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  ),
+                  child: Text(l10n.get('save').toUpperCase(),
+                      style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }

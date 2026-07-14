@@ -189,14 +189,16 @@ class _PaymentsPageState extends State<PaymentsPage> {
                       children: [
                         Text(
                           month[0].toUpperCase() + month.substring(1),
-                          style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                          style: TextStyle(
+                                fontSize: 16,
                                 fontWeight: FontWeight.bold,
                                 color: Theme.of(context).colorScheme.primary,
                               ),
                         ),
                         Text(
                           NumberFormat.currency(locale: 'es_AR', symbol: '\$', decimalDigits: 0, customPattern: '\u00A4 #,##0').format(monthTotal),
-                          style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                          style: TextStyle(
+                                fontSize: 16,
                                 fontWeight: FontWeight.bold,
                                 color: Theme.of(context).colorScheme.primary,
                               ),
@@ -276,10 +278,7 @@ class _PaymentsPageState extends State<PaymentsPage> {
                         ),
                         title: Text(
                           customerName.toUpperCase(),
-                          style: const TextStyle(
-                            //fontWeight: FontWeight.bold,
-                            fontSize: 16,
-                          ),
+                          style: const TextStyle(fontSize: 14),
                         ),
                         trailing: Column(
                           mainAxisSize: MainAxisSize.min,
@@ -296,7 +295,7 @@ class _PaymentsPageState extends State<PaymentsPage> {
                             ),
                           ],
                         ),
-                        subtitle: Text('${l10n.get('seller')}: $sellerName'),
+                        subtitle: Text('${l10n.get('seller')}: $sellerName', style: const TextStyle(fontSize: 12)),
                         onTap: () => _showEditPaymentDialog(payment),
                       ),
                     );

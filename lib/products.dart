@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -87,7 +89,7 @@ class _ProductsPageState extends State<ProductsPage> {
   }
 
   void _showProductDialog({DocumentSnapshot? product}) {
-    showDialog(
+    showDialog<bool>(
       context: context,
       builder: (context) {
         return ProductDialog(
@@ -97,7 +99,13 @@ class _ProductsPageState extends State<ProductsPage> {
           product: product,
         );
       },
-    );
+    ).then((result) {
+      // Si el diálogo se cerró (independientemente de si se guardó o no),
+      // forzamos una actualización para recargar las categorías y proveedores.
+      if (mounted) {
+        setState(() {});
+      }
+    });
   }
 
   Future<void> _printProducts() async {
@@ -1013,6 +1021,7 @@ class _ProductDialogState extends State<ProductDialog> {
   bool _purchasePriceIncludesVat = false;
   bool _isActive = true;
   bool _isLoading = true;
+  bool _isSaving = false; // Estado para controlar el proceso de guardado
   Stream<QuerySnapshot>? _offersStream;
   late Stream<QuerySnapshot> _categoriesStream;
   late Stream<QuerySnapshot> _suppliersStream;
@@ -1127,7 +1136,7 @@ class _ProductDialogState extends State<ProductDialog> {
       }
     } else {
       _marginController.text = _defaultMarginFromSettings.toString();
-      _priceController.text = '0.0';
+      _priceController.text = '';
     }
   }
 
@@ -1241,6 +1250,11 @@ class _ProductDialogState extends State<ProductDialog> {
 
   Future<void> _saveProduct() async {
     if (_formKey.currentState!.validate()) {
+      if (_isSaving) return; // Si ya se está guardando, no hacer nada
+      setState(() {
+        _isSaving = true; // Iniciar el estado de guardado
+      });
+
       final name = _nameController.text;
       final description = _descriptionController.text;
       final barCode = _barCodeController.text;
@@ -1258,6 +1272,9 @@ class _ProductDialogState extends State<ProductDialog> {
             backgroundColor: Colors.red,
           ),
         );
+        setState(() {
+          _isSaving = false; // Finalizar el estado de guardado
+        });
         return;
       }
 
@@ -1272,6 +1289,9 @@ class _ProductDialogState extends State<ProductDialog> {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(content: Text('Ya existe un producto con este código de barras.'), backgroundColor: Colors.red),
           );
+          setState(() {
+            _isSaving = false; // Finalizar el estado de guardado
+          });
           return;
         }
       }
@@ -1302,20 +1322,18 @@ class _ProductDialogState extends State<ProductDialog> {
         if (isEditing) {
           if (_imageFile != null) {
             imageUrl = await widget.firestoreService.uploadImage(_imageFile!, widget.product!.id);
-          }
-          await widget.firestoreService.updateProduct(widget.product!.id, name, description, barCode, purchasePriceToSave, _purchasePriceIncludesVat, salePriceToSave, stock, safetyStock, unitsBox, imageUrl, _selectedCategoryId, _selectedSupplierId, _isActive);
+          }          await widget.firestoreService.updateProduct(widget.product!.id, name, description, barCode, purchasePriceToSave, _purchasePriceIncludesVat, salePriceToSave, stock, safetyStock, unitsBox, imageUrl, _selectedCategoryId, _selectedSupplierId, _isActive, imageFile: _imageFile);
         } else {
-          final docRef = await widget.firestoreService.addProduct(widget.businessId, name, description, barCode, purchasePriceToSave, _purchasePriceIncludesVat, salePriceToSave, stock, safetyStock, unitsBox, null, _selectedCategoryId, _selectedSupplierId, _isActive);
-          if (_imageFile != null) {
-            imageUrl = await widget.firestoreService.uploadImage(_imageFile!, docRef.id);
-            await docRef.update({'imageUrl': imageUrl});
-          }
+          await widget.firestoreService.addProduct(widget.businessId, name, description, barCode, purchasePriceToSave, _purchasePriceIncludesVat, salePriceToSave, stock, safetyStock, unitsBox, null, _selectedCategoryId, _selectedSupplierId, _isActive, imageFile: _imageFile);
         }
       } catch (e) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(content: Text('Error al guardar: $e'), backgroundColor: Colors.red),
           );
+        }
+        if (mounted) {
+          setState(() => _isSaving = false); // Finalizar el estado de guardado en caso de error
         }
         return;
       }
@@ -1352,10 +1370,13 @@ class _ProductDialogState extends State<ProductDialog> {
     );
 
     if (newCategory != null && newCategory.isNotEmpty) {
-      final docRef = await widget.firestoreService.addCategory(widget.businessId, newCategory);
-      setState(() {
-        _selectedCategoryId = docRef.id;
-      });
+      final docRef = await widget.firestoreService.addCategory(widget.businessId, newCategory);      
+      // Usamos un Future.delayed para darle un instante al StreamBuilder para que se actualice
+      // con la nueva categoría antes de seleccionarla en el dropdown.
+      await Future.delayed(const Duration(milliseconds: 100));
+      if (mounted) {
+        setState(() => _selectedCategoryId = docRef.id);
+      }
     }
   }
 
@@ -1433,7 +1454,12 @@ class _ProductDialogState extends State<ProductDialog> {
         result['phone']!,
         result['email']!,
       );
-      setState(() => _selectedSupplierId = docRef.id);
+      // Usamos un Future.delayed para darle un instante al StreamBuilder para que se actualice
+      // con el nuevo proveedor antes de seleccionarlo en el dropdown.
+      await Future.delayed(const Duration(milliseconds: 100));
+      if (mounted) {
+        setState(() => _selectedSupplierId = docRef.id);
+      }
     }
   }
 
@@ -1667,6 +1693,7 @@ class _ProductDialogState extends State<ProductDialog> {
                             // Validar que la categoría seleccionada exista en la lista cargada para evitar errores
                             final val = _selectedCategoryId != null && categories.any((d) => d.id == _selectedCategoryId) ? _selectedCategoryId : null;
                             return DropdownButtonFormField<String?>(
+                              isExpanded: true, // Permite que el texto largo no se corte.
                               initialValue: val,
                               hint: Text(l10n.get('category')),
                               items: categories.map((doc) {
@@ -1701,18 +1728,19 @@ class _ProductDialogState extends State<ProductDialog> {
                             // Validar que el proveedor seleccionado exista en la lista cargada
                             final val = _selectedSupplierId != null && suppliers.any((d) => d.id == _selectedSupplierId) ? _selectedSupplierId : null;
                             return DropdownButtonFormField<String?>(
-                              initialValue: val,
-                              hint: Text(l10n.get('supplier')),
-                              items: suppliers.map((doc) {
-                                return DropdownMenuItem(
-                                  value: doc.id,
-                                  child: Text((doc['name']?.toString() ?? l10n.get('noName'))),
-                                );
-                              }).toList(),
-                              onChanged: (value) {
-                                setState(() => _selectedSupplierId = value);
-                              },
-                            );
+                                isExpanded: true, // Permite que el texto largo no se corte.
+                                initialValue: val,
+                                hint: Text(l10n.get('supplier')),
+                                items: suppliers.map((doc) {
+                                  return DropdownMenuItem(
+                                    value: doc.id,
+                                    child: Text((doc['name']?.toString() ?? l10n.get('noName')), overflow: TextOverflow.ellipsis),
+                                  );
+                                }).toList(),
+                                onChanged: (value) {
+                                  setState(() => _selectedSupplierId = value);
+                                },
+                              );
                           },
                         ),
                       ),
@@ -1887,7 +1915,7 @@ class _ProductDialogState extends State<ProductDialog> {
           child: Text(l10n.get('cancel')),
         ),
         ElevatedButton(
-          onPressed: _saveProduct,
+          onPressed: _isSaving ? null : _saveProduct, // Deshabilitar si se está guardando
           child: Text(l10n.get('save')),
         ),
       ],
@@ -1904,10 +1932,12 @@ class BarcodeScannerSimple extends StatelessWidget {
       appBar: AppBar(title: const Text('Escanear Código')),
       body: MobileScanner(
         onDetect: (capture) {
-          final List<Barcode> barcodes = capture.barcodes;
-          if (barcodes.isNotEmpty && barcodes.first.rawValue != null) {
-            Navigator.pop(context, barcodes.first.rawValue);
-          }
+           final barcode = capture.barcodes.firstOrNull?.rawValue;
+           if (barcode != null && context.mounted) {
+             // Usamos scheduleMicrotask para asegurar que la navegación
+             // ocurra fuera del ciclo de vida del escáner.
+             scheduleMicrotask(() => Navigator.of(context).pop(barcode));
+           }
         },
       ),
     );

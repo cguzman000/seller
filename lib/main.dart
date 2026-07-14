@@ -28,6 +28,7 @@ import 'app_localizations.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp();
+
   await FirebaseAppCheck.instance.activate(
     // Usamos 'debug' para desarrollo. Para producción usa 'AndroidProvider.playIntegrity'.
     androidProvider: AndroidProvider.debug,
@@ -302,7 +303,7 @@ class _MyAppState extends State<MyApp> {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      debugShowCheckedModeBanner: false,
+      debugShowCheckedModeBanner: false,// Desactiva la etiqueta de depuración
       onGenerateTitle: (context) => AppLocalizations.of(context).get('appName'),
       locale: _locale,
       theme: ThemeData(
@@ -1178,7 +1179,7 @@ class _MyHomePageState extends State<MyHomePage> {
       ),
 
       body: ListView(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.all(10.0),
         children: [
 
           // --- SECCIÓN 1: KPIs DINÁMICOS ---
@@ -1186,9 +1187,9 @@ class _MyHomePageState extends State<MyHomePage> {
             crossAxisCount: 2,
             shrinkWrap: true,
             physics: const NeverScrollableScrollPhysics(),
-            crossAxisSpacing: 12,
-            mainAxisSpacing: 12,
-            childAspectRatio: 1.6,
+            crossAxisSpacing: 5,
+            mainAxisSpacing: 5,
+            childAspectRatio: 2.0,//maneja tamaño de cards
             children: [
               _buildTodaySalesCard(l10n),
               _buildMonthlySalesCard(l10n),
@@ -1261,8 +1262,8 @@ class _MyHomePageState extends State<MyHomePage> {
       physics: const NeverScrollableScrollPhysics(),
       gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
         crossAxisCount: 3,
-        crossAxisSpacing: 8,
-        mainAxisSpacing: 8,
+        crossAxisSpacing: 5,
+        mainAxisSpacing: 5,
         childAspectRatio: 1.1,
       ),
       itemCount: reportItems.length,
@@ -1582,6 +1583,8 @@ class _MyHomePageState extends State<MyHomePage> {
     required Color color,
   }) {
     final textTheme = Theme.of(context).textTheme;
+    final headlineStyle = textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold);
+
     return Card(
       elevation: 1.5,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -1591,23 +1594,27 @@ class _MyHomePageState extends State<MyHomePage> {
           crossAxisAlignment: CrossAxisAlignment.start,
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(icon, size: 24, color: color),
-            const SizedBox(height: 8),
-            Flexible(
-              child: Text(
-                value,
-                style: textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Icon(icon, size: 24, color: color),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    value,
+                    style: headlineStyle?.copyWith(fontSize: (headlineStyle.fontSize ?? 24) - 6),//tamaño de fuente más pequeño para que encaje mejor
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              ],
             ),
-            Flexible(
-              child: Text(
-                title,
-                style: textTheme.bodyMedium,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
+            const SizedBox(height: 4),
+            Text(
+              title,
+              style: textTheme.bodyMedium,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
             ),
           ],
         ),

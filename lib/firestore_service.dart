@@ -119,49 +119,44 @@ class FirestoreService {
 
   /// Añade un nuevo producto a la colección 'products'.
   Future<DocumentReference> addProduct(String userId, String name, String? description, String? barCode, double purchPrice, bool purchasePriceIncludesVat, double price, int stock, int safetyStock, int? unitsBox, String? imageUrl, String? categoryId, String? supplierId, bool state, {File? imageFile}) async {
-    // Generamos la referencia primero para obtener el ID antes de guardar (necesario para el nombre de la imagen)
-    DocumentReference ref = _db.collection('products').doc();
-    
-    String? finalImageUrl = imageUrl;
+    // 1. Crea el documento del producto en Firestore SIN la URL de la imagen.
+    // Esto nos da un ID de producto estable de inmediato.
+    DocumentReference productRef = await _db.collection('products').add({
+          'categoryId': categoryId,
+          'supplierId': supplierId,
+          'name': name.trim().toUpperCase(),
+          'name_lowercase': name.trim().toLowerCase(),
+          'description': description?.trim().toUpperCase(),
+          'bar_code': barCode?.trim(),
+          'purch_price': purchPrice,
+          'purchase_price_includes_vat': purchasePriceIncludesVat,
+          'price': price,
+          'units_box': unitsBox,
+          'stock': stock,
+          'safety_stock': safetyStock,
+          'createdAt': FieldValue.serverTimestamp(),
+          'imageUrl': null, // Se establece como nulo inicialmente
+          'state': state,
+          'userId': userId,
+        });
 
-    // Si se proporciona un archivo, lo subimos y actualizamos la URL
+    // 2. Si se proporcionó un archivo de imagen, súbelo AHORA.
     if (imageFile != null) {
-      finalImageUrl = await uploadImage(imageFile, ref.id);
+      final String downloadUrl = await uploadImage(imageFile, productRef.id);
+      // 3. Actualiza el documento recién creado con la URL de la imagen.
+      await productRef.update({'imageUrl': downloadUrl});
     }
 
-    await ref.set({
-      'categoryId': categoryId,
-      'supplierId': supplierId,
-      'name': name.trim().toUpperCase(),
-      'description': description?.trim().toUpperCase(),
-      'bar_code': barCode?.trim(),
-      'purch_price': purchPrice,
-      'purchase_price_includes_vat': purchasePriceIncludesVat,
-      'price': price,
-      'units_box': unitsBox,
-      'stock': stock,
-      'safety_stock': safetyStock,
-      'createdAt': FieldValue.serverTimestamp(), // Añade la fecha de creación
-      'imageUrl': finalImageUrl,
-      'state': state,
-      'userId': userId,
-    });
-    
-    return ref;
+    return productRef;
   }
 
   /// Actualiza un producto existente en la colección 'products'.
   Future<void> updateProduct(String productId, String name, String? description, String? barCode, double purchPrice, bool purchasePriceIncludesVat, double price, int stock, int safetyStock, int? unitsBox, String? imageUrl, String? categoryId, String? supplierId, bool state, {File? imageFile}) async {
-    String? finalImageUrl = imageUrl;
-
-    if (imageFile != null) {
-      finalImageUrl = await uploadImage(imageFile, productId);
-    }
-
-    return _db.collection('products').doc(productId).update({
+    final Map<String, dynamic> updates = {
       'categoryId': categoryId,
       'supplierId': supplierId,
       'name': name.trim().toUpperCase(),
+      'name_lowercase': name.trim().toLowerCase(),
       'description': description?.trim().toUpperCase(),
       'bar_code': barCode?.trim(),
       'purch_price': purchPrice,
@@ -170,11 +165,20 @@ class FirestoreService {
       'units_box': unitsBox,
       'stock': stock,
       'safety_stock': safetyStock,
-      'imageUrl': finalImageUrl,
       'state': state,
-      // Opcional: puedes añadir un campo 'updatedAt'
-      // 'updatedAt': FieldValue.serverTimestamp(),
-    });
+      'updatedAt': FieldValue.serverTimestamp(),
+    };
+
+    // 1. Si se proporciona un nuevo archivo de imagen, súbelo.
+    if (imageFile != null) {
+      updates['imageUrl'] = await uploadImage(imageFile, productId);
+    } else if (imageUrl == null) {
+      // 2. Si no hay archivo nuevo y la URL existente es nula,
+      // significa que se quiere borrar la imagen del producto.
+      updates['imageUrl'] = FieldValue.delete();
+    }
+
+    return _db.collection('products').doc(productId).update(updates);
   }
 
   /// Añade una nueva oferta a la colección 'offers'.

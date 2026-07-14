@@ -253,7 +253,7 @@ class _AddSalePageState extends State<AddSalePage> {
   Future<void> _showPaymentDialog() async {
     final l10n = AppLocalizations.of(context);
     final grossTotal = _totalAmount * (1 + _vatRate);
-    final paymentController = TextEditingController(text: '0.00');
+    final paymentController = TextEditingController();
     String paymentType = 'Efectivo'; // Valor por defecto
 
     final result = await showDialog<Map<String, dynamic>>(
@@ -1091,9 +1091,7 @@ class _AddSalePageState extends State<AddSalePage> {
                                               return snapshot.docs.where((doc) {
                                                 final data = doc.data()
                                                     as Map<String, dynamic>;
-                                                final name = (data['name']
-                                                            as String? ??
-                                                        '')
+                                                final name = (data['name'] as String? ?? '')
                                                     .toLowerCase();
                                                 final barcode = (data['bar_code']
                                                             as String? ??
@@ -1404,38 +1402,20 @@ class _AddSalePageState extends State<AddSalePage> {
                 ),
         ),
       ),
-      bottomNavigationBar: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
-          child: Row(
-            children: [
-              Expanded(
-                child: OutlinedButton(
-                  onPressed: () => Navigator.of(context).pop(),
-                  style: OutlinedButton.styleFrom(
-                    minimumSize: const Size.fromHeight(54),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                  ),
-                  child: Text(l10n.get('cancel').toUpperCase(),
-                      style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: ElevatedButton(
-                  onPressed: _saveSale,
-                  style: ElevatedButton.styleFrom(
-                    minimumSize: const Size.fromHeight(54),
-                    backgroundColor: Theme.of(context).colorScheme.primary,
-                    foregroundColor: Theme.of(context).colorScheme.onPrimary,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                  ),
-                  child: Text(l10n.get('save').toUpperCase(),
-                      style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-                ),
-              ),
-            ],
-          ),
+      bottomNavigationBar: BottomAppBar(
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.end,
+          children: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: Text(l10n.get('cancel')),
+            ),
+            const SizedBox(width: 8),
+            ElevatedButton(
+              onPressed: _saveSale,
+              child: Text(l10n.get('save')),
+            ),
+          ],
         ),
       ),
       floatingActionButton: _isEditing

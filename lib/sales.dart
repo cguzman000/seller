@@ -238,20 +238,22 @@ class _SalesPageState extends State<SalesPage> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Padding(
-                    padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+                    padding: const EdgeInsets.fromLTRB(16, 12, 16, 6),
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
                         Text(
                           month[0].toUpperCase() + month.substring(1),
-                          style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                          style: TextStyle(
+                                fontSize: 16,//TAMAñO DE LETRA DEL MES
                                 fontWeight: FontWeight.bold,
                                 color: Theme.of(context).colorScheme.primary,
                               ),
                         ),
                         Text(
                           NumberFormat.currency(locale: 'es_CL', symbol: '\$', decimalDigits: 0, customPattern: '\u00A4 #,##0').format(monthTotal),
-                          style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                          style: TextStyle(
+                                fontSize: 16,//TAMAñO DE LETRA DEL TOTAL DEL MES
                                 fontWeight: FontWeight.bold,
                                 color: Theme.of(context).colorScheme.primary,
                               ),
@@ -549,71 +551,71 @@ class _SaleListItem extends StatelessWidget {
               ),
             );
           },
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              ListTile(
-                leading: saleDate != null
-                    ? SizedBox(
-                        width: 50,
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Text(
-                              DateFormat.MMM(AppLocalizations.of(context).locale.languageCode).format(saleDate).toUpperCase(),
-                              style: Theme.of(context).textTheme.bodyLarge,
-                            ),
-                            Text(
-                              DateFormat.d(AppLocalizations.of(context).locale.languageCode).format(saleDate),
-                              style: Theme.of(context).textTheme.titleMedium,
-                            ),
-                          ],
-                        ),
-                      )
-                    : const SizedBox(width: 50),
-                title: Text('${l10n.get('saleNumber')}${saleData['sale_number'] ?? ''}'),
-                subtitle: Text((saleData['customerName'] as String? ?? l10n.get('noCustomer')).toUpperCase()),
-                trailing: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    if (balance <= 0.01)
-                      const Padding(
-                        padding: EdgeInsets.only(right: 8.0),
-                        child: Icon(Icons.check_circle, color: Colors.green),
-                      ),
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.end,
+          child: ListTile(
+            leading: saleDate != null
+                ? SizedBox(
+                    width: 50,
+                    child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
                         Text(
-                          '\$${totalAmount.toStringAsFixed(0)}',
-                          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                          DateFormat.MMM(AppLocalizations.of(context).locale.languageCode).format(saleDate).toUpperCase(),
+                          style: Theme.of(context).textTheme.bodyLarge,
                         ),
                         Text(
-                          '${l10n.get('paidLabel')}: \$${paidAmount.toStringAsFixed(0)}',
-                          style: const TextStyle(color: Colors.green, fontSize: 12),
+                          DateFormat.d(AppLocalizations.of(context).locale.languageCode).format(saleDate),
+                          style: Theme.of(context).textTheme.titleMedium,
                         ),
-                        if (balance > 0.01)
-                          Text(
-                            '${l10n.get('balanceLabel')}: \$${balance.toStringAsFixed(0)}',
-                            style: const TextStyle(color: Colors.orange, fontWeight: FontWeight.bold, fontSize: 12),
-                          ),
                       ],
                     ),
+                  )
+                : const SizedBox(width: 50),
+            title: Text('${l10n.get('saleNumber')}${saleData['sale_number'] ?? ''}', style: const TextStyle(fontSize: 14)),
+            subtitle: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text((saleData['customerName'] as String? ?? l10n.get('noCustomer')).toUpperCase(), style: const TextStyle(fontSize: 12)),
+                if (saleData['note'] != null && saleData['note'].toString().isNotEmpty)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 4.0),
+                    child: Text(
+                      saleData['note'],
+                      style: const TextStyle(fontSize: 12, fontStyle: FontStyle.italic, color: Colors.grey),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+              ],
+            ),
+            trailing: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (balance <= 0.01)
+                  const Padding(
+                    padding: EdgeInsets.only(right: 8.0),
+                    child: Icon(Icons.check_circle, color: Colors.green),
+                  ),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Text(
+                      '\$${totalAmount.toStringAsFixed(0)}',
+                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                    ),
+                    Text(
+                      '${l10n.get('paidLabel')}: \$${paidAmount.toStringAsFixed(0)}',
+                      style: const TextStyle(color: Colors.green, fontSize: 12),
+                    ),
+                    if (balance > 0.01)
+                      Text(
+                        '${l10n.get('balanceLabel')}: \$${balance.toStringAsFixed(0)}',
+                        style: const TextStyle(color: Colors.orange, fontWeight: FontWeight.bold, fontSize: 12),
+                      ),
                   ],
                 ),
-              ),
-              if (saleData['note'] != null && saleData['note'].toString().isNotEmpty)
-                Padding(
-                  padding: const EdgeInsets.only(left: 72.0, right: 16.0, bottom: 12.0),
-                  child: Text(
-                    saleData['note'],
-                    style: const TextStyle(fontSize: 13, fontStyle: FontStyle.italic, color: Colors.grey),
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ),
-            ],
+              ],
+            ),
           ),
         );
       },

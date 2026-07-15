@@ -636,6 +636,21 @@ class FirestoreService {
     return _db.collection('products').doc(productId).get();
   }
 
+  /// Obtiene un producto específico por su código de barras.
+  Future<DocumentSnapshot?> getProductByBarcode(String businessId, String barcode) async {
+    final query = await _db
+        .collection('products')
+        .where('userId', isEqualTo: businessId)
+        .where('bar_code', isEqualTo: barcode.trim())
+        .limit(1)
+        .get();
+
+    if (query.docs.isNotEmpty) {
+      return query.docs.first;
+    }
+    return null;
+  }
+
   /// Obtiene un Stream de todas las categorías.
   Stream<QuerySnapshot> getCategories(String userId) {
     return _db.collection('categories').where('userId', isEqualTo: userId).orderBy('name').snapshots();

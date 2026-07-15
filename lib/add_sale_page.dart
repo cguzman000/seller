@@ -682,6 +682,33 @@ class _AddSalePageState extends State<AddSalePage> {
     }
   }
 
+  Future<void> _scanBarcodeAndAddProduct() async {
+    // 1. Abrir el escáner
+    final barcode = await Navigator.push<String>(
+      context,
+      MaterialPageRoute(builder: (context) => const BarcodeScannerSimple()),
+    );
+
+    if (barcode == null || !mounted) return;
+
+    // 2. Buscar el producto por código de barras
+    final productDoc = await _firestoreService.getProductByBarcode(widget.businessId, barcode);
+
+    if (productDoc == null) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Producto no encontrado.')));
+      return;
+    }
+
+    // 3. Comprobar si el producto ya está en la lista
+    final existingItemIndex = _saleItems.indexWhere((item) => item.product.id == productDoc.id);
+    if (existingItemIndex != -1) {
+      // Si ya existe, solo incrementa la cantidad
+      setState(() => _saleItems[existingItemIndex].quantity++);
+    } else {
+      // Si es nuevo, usa la lógica existente que maneja las ofertas
+      _handleProductSelection(productDoc, null);
+    }
+  }
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
@@ -1229,6 +1256,11 @@ class _AddSalePageState extends State<AddSalePage> {
                                       ),
                                     ),
                                     IconButton(
+                                      icon: const Icon(Icons.qr_code_scanner),
+                                      onPressed: _scanBarcodeAndAddProduct,
+                                      tooltip: l10n.get('scanBarcode'),
+                                    ),
+                                    IconButton(
                                       icon: const Icon(Icons.add_box),
                                       onPressed: () {
                                         showDialog(
@@ -1676,62 +1708,82 @@ class _EditSaleItemDialogState extends State<_EditSaleItemDialog> {
     return AlertDialog(
       title: Text('${l10n.get('editProduct')}: ${widget.item.product.name}'),
       content: _isLoading
-          ? const SizedBox(height: 100, child: Center(child: CircularProgressIndicator()))
-          : Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                TextField(
-                  controller: _quantityController,
-                  keyboardType: TextInputType.number,
-                  decoration: InputDecoration(labelText: l10n.get('quantityLabel')),
-                  autofocus: true,
-                  onChanged: _onQuantityChanged,
-                ),
-                TextField(
-                  controller: _priceController,
-                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                  decoration: InputDecoration(
-                    labelText: _priceIncludesVat ? l10n.get('salePriceIvaInc') : l10n.get('salePriceNet'),
-                    prefixText: '\$',
+          ? const SizedBox(
+              height: 100, child: Center(child: CircularProgressIndicator()))
+          : SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  TextField(
+                    controller: _quantityController,
+                    keyboardType: TextInputType.number,
+                    decoration:
+                        InputDecoration(labelText: l10n.get('quantityLabel')),
+                    autofocus: true,
+                    onChanged: _onQuantityChanged,
                   ),
-                  onChanged: (_) => setState(() {}),
-                ),
-                CheckboxListTile(
-                  title: Text(l10n.get('priceIncludesVat')),
-                  value: _priceIncludesVat,
-                  onChanged: (val) {
-                    setState(() {
-                      _priceIncludesVat = val ?? true;
-                      // Recalcular el valor en el campo para mantener el precio real constante
-                      final currentVal = double.tryParse(_priceController.text) ?? 0.0;
-                      if (_priceIncludesVat) {
-                        _priceController.text = (currentVal * (1 + widget.vatRate)).toStringAsFixed(2);
-                      } else {
-                        _priceController.text = (currentVal / (1 + widget.vatRate)).toStringAsFixed(2);
-                      }
-                    });
-                  },
-                  controlAffinity: ListTileControlAffinity.leading,
-                  contentPadding: EdgeInsets.zero,
-                  dense: true,
-                ),
-                const SizedBox(height: 10),
-                Text(
-                  '$displayLabel: \$${displayValue.toStringAsFixed(2)}',
-                  style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.blueGrey),
-                ),
-              ],
+                  TextField(
+                    controller: _priceController,
+                    keyboardType:
+                        const TextInputType.numberWithOptions(decimal: true),
+                    decoration: InputDecoration(
+                      labelText: _priceIncludesVat
+                          ? l10n.get('salePriceIvaInc')
+                          : l10n.get('salePriceNet'),
+                      prefixText: '\$',
+                    ),
+                    onChanged: (_) => setState(() {}),
+                  ),
+                  CheckboxListTile(
+                    title: Text(l10n.get('priceIncludesVat')),
+                    value: _priceIncludesVat,
+                    onChanged: (val) {
+                      setState(() {
+                        _priceIncludesVat = val ?? true;
+                        // Recalcular el valor en el campo para mantener el precio real constante
+                        final currentVal =
+                            double.tryParse(_priceController.text) ?? 0.0;
+                        if (_priceIncludesVat) {
+                          _priceController.text =
+                              (currentVal * (1 + widget.vatRate))
+                                  .toStringAsFixed(2);
+                        } else {
+                          _priceController.text =
+                              (currentVal / (1 + widget.vatRate))
+                                  .toStringAsFixed(2);
+                        }
+                      });
+                    },
+                    controlAffinity: ListTileControlAffinity.leading,
+                    contentPadding: EdgeInsets.zero,
+                    dense: true,
+                  ),
+                  const SizedBox(height: 10),
+                  Text(
+                    '$displayLabel: \$${displayValue.toStringAsFixed(2)}',
+                    style: const TextStyle(
+                        fontWeight: FontWeight.bold, color: Colors.blueGrey),
+                  ),
+                ],
+              ),
             ),
       actions: [
         TextButton(
           onPressed: widget.onDelete,
           child: Text(l10n.get('delete'), style: const TextStyle(color: Colors.red)),
         ),
-        TextButton(child: Text(l10n.get('cancel')), onPressed: () => Navigator.of(context).pop()),
-        ElevatedButton(
-          onPressed: _isLoading
-              ? null
-              : () {
+        const Spacer(), // Empuja los siguientes botones a la derecha
+        Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextButton(
+                child: Text(l10n.get('cancel')),
+                onPressed: () => Navigator.of(context).pop()),
+            const SizedBox(width: 8),
+            ElevatedButton(
+              onPressed: _isLoading
+                  ? null
+                  : () {
                   final newQuantity = int.tryParse(_quantityController.text) ?? widget.item.quantity;
                   final inputValue = double.tryParse(_priceController.text) ?? 0.0;
                   double finalNetPrice;
@@ -1742,7 +1794,9 @@ class _EditSaleItemDialogState extends State<_EditSaleItemDialog> {
                   }
                   widget.onUpdate(newQuantity, finalNetPrice);
                 },
-          child: Text(l10n.get('save')),
+              child: Text(l10n.get('save')),
+            ),
+          ],
         ),
       ],
     );

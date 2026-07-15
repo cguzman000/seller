@@ -339,7 +339,11 @@ class _OfferDialogState extends State<OfferDialog> {
       final data = widget.offer!.data() as Map<String, dynamic>;
       _nameController.text = data['name'] ?? '';
       _quantityController.text = data['quantity'].toString();
-      _priceController.text = data['price'].toString();
+      // Formatear el precio a dos decimales desde el inicio.
+      // El precio guardado es neto, y el checkbox de IVA incluido está desactivado por defecto,
+      // por lo que mostramos el precio neto formateado.
+      final netPrice = (data['price'] as num?)?.toDouble() ?? 0.0;
+      _priceController.text = netPrice.toStringAsFixed(2);
       _selectedProductId = data['productId'];
     }
   }
@@ -397,7 +401,7 @@ class _OfferDialogState extends State<OfferDialog> {
                       if (netPrice != null)
                         Padding(
                           padding: const EdgeInsets.only(top: 4.0, left: 4.0),
-                          child: Text('Precio Normal: \$${(netPrice * (1 + widget.vatRate)).toStringAsFixed(2)} (Neto: \$${netPrice.toStringAsFixed(2)})', style: const TextStyle(color: Colors.grey, fontSize: 12)),
+                          child: Text('Precio Normal: \$${(netPrice * (1 + widget.vatRate)).toStringAsFixed(0)} (Neto: \$${netPrice.toStringAsFixed(2)})', style: const TextStyle(color: Colors.grey, fontSize: 12)),
                         ),
                     ],
                   );

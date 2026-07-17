@@ -296,10 +296,10 @@ class _AddSalePageState extends State<AddSalePage> {
                 TextButton(onPressed: () => Navigator.of(context).pop(), child: Text(l10n.get('cancel'))),
                 ElevatedButton(
                   onPressed: () {
-                    final amount = double.tryParse(paymentController.text);
-                    if (amount != null && amount >= 0) {
-                      Navigator.of(context).pop({'amount': amount, 'type': paymentType});
-                    }
+                    // Si el campo está vacío, se asume 0. Si no, se parsea.
+                    final amount = double.tryParse(paymentController.text.trim()) ?? 0.0;
+                    // Se permite guardar con 0 o más.
+                    Navigator.of(context).pop({'amount': amount, 'type': paymentType});
                   },
                   child: Text(l10n.get('save')),
                 ),

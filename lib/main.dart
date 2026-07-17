@@ -752,6 +752,15 @@ class _MyHomePageState extends State<MyHomePage> {
   }
 
   @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // Si el rol es admin, nos aseguramos de que el filtro de vendedor esté en null
+    // para mostrar los datos de todo el negocio.
+    if (widget.role == 'admin' && _filterSellerId != null) {
+      setState(() => _filterSellerId = null);
+    }
+  }
+  @override
   void dispose() {
     _companySettingsSubscription?.cancel();
     super.dispose();

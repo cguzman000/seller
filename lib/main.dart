@@ -99,6 +99,9 @@ class _SellerBottomNavigationBarState extends State<SellerBottomNavigationBar> {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     final colorScheme = Theme.of(context).colorScheme;
+    final bool isAdmin = widget.role == 'admin';
+    final Color roleColor = isAdmin ? colorScheme.primary : Colors.orange;
+    final Color unselectedColor = colorScheme.onSurfaceVariant;
 
     final List<_NavItem> items = [
       _NavItem(Icons.home, l10n.get('home'), 0),
@@ -135,7 +138,7 @@ class _SellerBottomNavigationBarState extends State<SellerBottomNavigationBar> {
                     children: [
                       Icon(
                         item.icon,
-                        color: isSelected ? colorScheme.primary : colorScheme.onSurfaceVariant,
+                        color: isSelected ? roleColor : unselectedColor,
                         size: 24,
                       ),
                       const SizedBox(height: 4),
@@ -143,7 +146,7 @@ class _SellerBottomNavigationBarState extends State<SellerBottomNavigationBar> {
                         item.label,
                         style: TextStyle(
                           fontSize: 11,
-                          color: isSelected ? colorScheme.primary : colorScheme.onSurfaceVariant,
+                          color: isSelected ? roleColor : unselectedColor,
                           fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
                         ),
                         textAlign: TextAlign.center,
@@ -170,7 +173,7 @@ class _SellerBottomNavigationBarState extends State<SellerBottomNavigationBar> {
       return;
     }
 
-    final String effectiveRole = widget.role ?? (widget.user.uid == widget.businessId ? 'admin' : 'seller');
+    final String effectiveRole = widget.role ?? 'seller';
 
     Widget page;
     switch (index) {
@@ -869,7 +872,9 @@ class _MyHomePageState extends State<MyHomePage> {
                     MaterialPageRoute(
                       builder: (context) => SellersPage(
                         user: widget.user,
-                        businessId: widget.businessId,
+                      businessId: widget.businessId, 
+                      role: widget.role,
+                      sellerId: widget.sellerId,
                       ),
                     ),
                   );
@@ -904,7 +909,9 @@ class _MyHomePageState extends State<MyHomePage> {
                   MaterialPageRoute(
                     builder: (context) => StockPage(
                       user: widget.user,
-                      businessId: widget.businessId, role: '',
+                      businessId: widget.businessId, 
+                      role: widget.role,
+                      sellerId: widget.sellerId,
                     ),
                   ),
                 );

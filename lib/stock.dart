@@ -9,15 +9,16 @@ import 'main.dart'; // Importar para usar SellerBottomNavigationBar
 class StockPage extends StatefulWidget {
   final User user;
   final String businessId;
+  final String? role;
+  final String? sellerId;
 
-  const StockPage({super.key, required this.user, required this.businessId, String? sellerId, required String role});
-  
-  String? get role => null;
-  
-  String? get sellerId => null;
-
+  const StockPage({super.key, 
+    required this.user, 
+    required this.businessId, 
+    this.sellerId, 
+    required this.role});
   @override
-  State<StockPage> createState() => _StockPageState();
+  State<StockPage> createState() => _StockPageState(); 
 }
 
 class _StockPageState extends State<StockPage> {

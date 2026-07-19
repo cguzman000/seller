@@ -7,7 +7,7 @@ import 'firestore_service.dart';
 class SellersPage extends StatefulWidget {
   final User user; // El usuario administrador
   final String businessId;
-  const SellersPage({super.key, required this.user, required this.businessId});
+  const SellersPage({super.key, required this.user, required this.businessId, required String role, String? sellerId});
 
   @override
   State<SellersPage> createState() => _SellersPageState();

@@ -3,6 +3,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'dart:developer';
 import 'package:intl/intl.dart';
+import 'package:seller/widgets/barcode_scanner.dart';
 import 'dart:async';
 import 'firestore_service.dart';
 import 'app_localizations.dart';

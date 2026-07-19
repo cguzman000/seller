@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:seller/main.dart';
 import 'firestore_service.dart';
-import 'products.dart';
 import 'app_localizations.dart';
-import 'main.dart'; // Importar para usar SellerBottomNavigationBar
+import 'widgets/barcode_scanner.dart';
 
 class StockPage extends StatefulWidget {
   final User user;
@@ -229,7 +229,7 @@ class _StockPageState extends State<StockPage> {
           ),
           Expanded(
             child: StreamBuilder<QuerySnapshot>(
-              stream: _firestoreService.getProducts(widget.businessId),
+              stream: _firestoreService.getProducts(widget.businessId, supplierId: _selectedSupplierId),
               builder: (context, snapshot) {
                 if (snapshot.hasError) {
                   return Center(child: Text('Error: ${snapshot.error}'));
@@ -247,13 +247,6 @@ class _StockPageState extends State<StockPage> {
                     final name = (data['name'] as String).toLowerCase();
                     final barCode = (data['bar_code'] as String?)?.toLowerCase() ?? '';
                     return name.contains(_searchTerm) || barCode.contains(_searchTerm);
-                  }).toList();
-                }
-
-                if (_selectedSupplierId != null) {
-                  products = products.where((doc) {
-                    final data = doc.data() as Map<String, dynamic>;
-                    return data['supplierId'] == _selectedSupplierId;
                   }).toList();
                 }
 

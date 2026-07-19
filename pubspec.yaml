@@ -53,6 +53,7 @@ dependencies:
   fl_chart: ^0.68.0
   showcaseview: ^5.1.0
   shared_preferences: ^2.5.5
+  flutter_riverpod: ^3.3.2
 dev_dependencies:
   flutter_test:
     sdk: flutter

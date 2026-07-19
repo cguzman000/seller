@@ -1,17 +1,19 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/services.dart';
 import 'dart:io';
 import 'package:image_picker/image_picker.dart';
+import 'package:seller/company_settings_provider.dart';
+import 'package:seller/main.dart';
 import 'firestore_service.dart';
 import 'app_localizations.dart';
 import 'util/text_formatter.dart';
 import 'package:seller/pdf_generator.dart';
-import 'package:mobile_scanner/mobile_scanner.dart';
-import 'main.dart'; // Importar para usar SellerBottomNavigationBar
+import 'widgets/barcode_scanner.dart'; // Importación del widget centralizado
 
 class ProductsPage extends StatefulWidget {
   final User user;
@@ -24,9 +26,8 @@ class ProductsPage extends StatefulWidget {
   State<ProductsPage> createState() => _ProductsPageState();
 }
 
-class _ProductsPageState extends State<ProductsPage> {
+class _ProductsPageState extends State<ProductsPage> { // Este se mantiene como StatefulWidget por los controllers
   final FirestoreService _firestoreService = FirestoreService();
-  double _vatRate = 0.21;
   final TextEditingController _searchController = TextEditingController();
   String _searchTerm = '';
   String? _selectedCategoryIdFilter;
@@ -34,13 +35,10 @@ class _ProductsPageState extends State<ProductsPage> {
   String? _selectedCategoryNameFilter;
   String? _selectedSupplierNameFilter;
   SortOption _sortOption = SortOption.none;
-  String? _companyName;
-  String? _companyPhone;
 
   @override
   void initState() {
     super.initState();
-    _loadCompanySettings();
     _searchController.addListener(() {
       setState(() {
         _searchTerm = _searchController.text;
@@ -52,18 +50,6 @@ class _ProductsPageState extends State<ProductsPage> {
   void dispose() {
     _searchController.dispose();
     super.dispose();
-  }
-
-  Future<void> _loadCompanySettings() async {
-    final settingsDoc = await _firestoreService.getCompanySettingsOnce(widget.businessId);
-    if (mounted && settingsDoc.exists) {
-      final settingsData = settingsDoc.data() as Map<String, dynamic>?;
-      setState(() {
-        _vatRate = (settingsData?['vat_rate'] as num? ?? 21.0) / 100.0;
-        _companyName = settingsData?['company_name'] as String?;
-        _companyPhone = settingsData?['company_phone'] as String?;
-      });
-    }
   }
 
   Future<void> _scanBarcode() async {
@@ -108,7 +94,14 @@ class _ProductsPageState extends State<ProductsPage> {
     });
   }
 
-  Future<void> _printProducts() async {
+  Future<void> _printProducts(WidgetRef ref) async {
+    // Obtenemos la configuración de la empresa desde el provider
+    final settings = ref.read(companySettingsProvider(widget.businessId));
+    final settingsData = settings.asData?.value.data() as Map<String, dynamic>?;
+    final vatRate = (settingsData?['vat_rate'] as num? ?? 21.0) / 100.0;
+    final companyName = settingsData?['company_name'] as String?;
+    final companyPhone = settingsData?['company_phone'] as String?;
+
     final l10n = AppLocalizations.of(context);
     // 1. Obtener los datos más recientes de Firestore
     final productDocsSnapshot = await _firestoreService.getProductsOnce(widget.businessId, categoryId: _selectedCategoryIdFilter, supplierId: _selectedSupplierIdFilter);
@@ -197,7 +190,7 @@ class _ProductsPageState extends State<ProductsPage> {
 
     if (widget.user.uid == widget.businessId) {
       // Si es el administrador, usamos el teléfono de la empresa
-      sellerPhone = _companyPhone ?? '';
+      sellerPhone = companyPhone ?? '';
     }
 
     // 5. Generar el documento PDF usando la nueva clase
@@ -209,10 +202,10 @@ class _ProductsPageState extends State<ProductsPage> {
         categoryMap: categoryMap,
         supplierMap: supplierMap,
         groupBy: _sortOption == SortOption.byCategory ? 'category' : (_sortOption == SortOption.bySupplier ? 'supplier' : null),
-        vatRate: _vatRate,
+        vatRate: vatRate,
         categoryFilterName: _selectedCategoryNameFilter,
         supplierFilterName: _selectedSupplierNameFilter,
-        companyName: _companyName,
+        companyName: companyName,
         sellerName: sellerName,
         sellerPhone: sellerPhone,
       );
@@ -308,14 +301,23 @@ class _ProductsPageState extends State<ProductsPage> {
 
   @override
   Widget build(BuildContext context) {
-    final l10n = AppLocalizations.of(context);
-    return Scaffold(
+    // Envolvemos el Scaffold con un Consumer para tener acceso a `ref`
+    return Consumer(builder: (context, ref, child) {
+      final l10n = AppLocalizations.of(context);
+      // Observamos el proveedor de configuración. Riverpod maneja el estado de carga/error.
+      final settingsAsyncValue = ref.watch(companySettingsProvider(widget.businessId));
+
+      // Extraemos los datos cuando estén disponibles
+      final settingsData = settingsAsyncValue.asData?.value.data() as Map<String, dynamic>?;
+      final vatRate = (settingsData?['vat_rate'] as num? ?? 21.0) / 100.0;
+
+      return Scaffold(
       appBar: AppBar(
         title: Text(l10n.get('products')),
         actions: [
           IconButton(
             icon: const Icon(Icons.print_outlined),
-            onPressed: _printProducts,
+            onPressed: () => _printProducts(ref),
             tooltip: l10n.get('printList'),
           ),
         ],
@@ -451,7 +453,7 @@ class _ProductsPageState extends State<ProductsPage> {
               searchTerm: _searchTerm,
               categoryIdFilter: _selectedCategoryIdFilter,
               supplierIdFilter: _selectedSupplierIdFilter,
-              vatRate: _vatRate,
+              vatRate: vatRate, // Pasamos el vatRate obtenido del provider
               sortOption: _sortOption,
               onProductTap: (product) => _showProductDialog(product: product),
               role: widget.role,
@@ -472,6 +474,7 @@ class _ProductsPageState extends State<ProductsPage> {
         currentIndex: 4, // Índice para Productos
       ),
     );
+    });
   }
 }
 
@@ -1942,40 +1945,6 @@ class _ProductDialogState extends State<ProductDialog> {
           child: Text(l10n.get('save')),
         ),
       ],
-    );
-  }
-}
-
-class BarcodeScannerSimple extends StatefulWidget {
-  const BarcodeScannerSimple({super.key});
-
-  @override
-  State<BarcodeScannerSimple> createState() => _BarcodeScannerSimpleState();
-}
-
-class _BarcodeScannerSimpleState extends State<BarcodeScannerSimple> {
-  bool _isPopping = false;
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text('Escanear Código')),
-      body: MobileScanner(
-        onDetect: (capture) async {
-          // Si ya estamos en proceso de cerrar la pantalla, ignoramos detecciones adicionales.
-          if (_isPopping) return;
-
-          final barcode = capture.barcodes.firstOrNull?.rawValue;
-          if (barcode != null && mounted) {
-            // Marcamos que estamos por cerrar la pantalla.
-            _isPopping = true;
-            // Usamos un microtask para asegurar que la navegación ocurra de forma segura.
-            scheduleMicrotask(() {
-              Navigator.of(context).pop(barcode);
-            });
-          }
-        },
-      ),
     );
   }
 }

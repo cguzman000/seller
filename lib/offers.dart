@@ -1,12 +1,14 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'dart:async';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:seller/widgets/barcode_scanner.dart';
 import 'firestore_service.dart';
-import 'main.dart'; // Importar para usar SellerBottomNavigationBar
-import 'products.dart';
 import 'app_localizations.dart';
 import 'package:seller/pdf_generator.dart';
+import 'package:seller/company_settings_provider.dart';
+import 'package:seller/main.dart';
 
 class OffersPage extends StatefulWidget {
   final User user;
@@ -29,35 +31,22 @@ class _OffersPageState extends State<OffersPage> {
   final FirestoreService _firestoreService = FirestoreService();
   final TextEditingController _searchController = TextEditingController();
   String _searchTerm = '';
-  double _vatRate = 0.21;
-  StreamSubscription? _settingsSubscription;
-  String? _companyName;
-  String? _companyPhone;
-
-  @override
-  void initState() {
-    super.initState();
-    _settingsSubscription = _firestoreService.getCompanySettings(widget.businessId).listen((snapshot) {
-      if (mounted && snapshot.exists) {
-        final settingsData = snapshot.data() as Map<String, dynamic>?;
-        setState(() {
-          _vatRate = (settingsData?['vat_rate'] as num? ?? 21.0) / 100.0;
-          _companyName = settingsData?['company_name'] as String?;
-          _companyPhone = settingsData?['company_phone'] as String?;
-        });
-      }
-    });
-  }
 
   @override
   void dispose() {
-    _settingsSubscription?.cancel();
     _searchController.dispose();
     super.dispose();
   }
 
-  Future<void> _printOffersCatalog() async {
+  Future<void> _printOffersCatalog(WidgetRef ref) async {
     final l10n = AppLocalizations.of(context);
+
+    // Obtenemos la configuración de la empresa desde el provider
+    final settings = ref.read(companySettingsProvider(widget.businessId));
+    final settingsData = settings.asData?.value.data() as Map<String, dynamic>?;
+    final vatRate = (settingsData?['vat_rate'] as num? ?? 21.0) / 100.0;
+    final companyName = settingsData?['company_name'] as String?;
+    final companyPhone = settingsData?['company_phone'] as String?;
     
     // 1. Obtener todas las ofertas
     final offersSnapshot = await _firestoreService.getAllOffersOnce(widget.businessId);
@@ -117,7 +106,7 @@ class _OffersPageState extends State<OffersPage> {
     });
     
     String sellerName = widget.user.displayName ?? 'Vendedor';
-    String sellerPhone = _companyPhone ?? '';
+    String sellerPhone = companyPhone ?? '';
 
     // 6. Generar PDF
     try {
@@ -129,8 +118,8 @@ class _OffersPageState extends State<OffersPage> {
         supplierMap: supplierMap,
         catalogTitle: l10n.get('offers'),
         groupBy: 'category',
-        vatRate: _vatRate,
-        companyName: _companyName,
+        vatRate: vatRate,
+        companyName: companyName,
         sellerName: sellerName,
         sellerPhone: sellerPhone,
       );
@@ -143,14 +132,22 @@ class _OffersPageState extends State<OffersPage> {
 
   @override
   Widget build(BuildContext context) {
-    final l10n = AppLocalizations.of(context);
-    return Scaffold(
+    return Consumer(builder: (context, ref, child) {
+      final l10n = AppLocalizations.of(context);
+      // Observamos el proveedor de configuración. Riverpod maneja el estado de carga/error.
+      final settingsAsyncValue = ref.watch(companySettingsProvider(widget.businessId));
+
+      // Extraemos los datos cuando estén disponibles
+      final settingsData = settingsAsyncValue.asData?.value.data() as Map<String, dynamic>?;
+      final vatRate = (settingsData?['vat_rate'] as num? ?? 21.0) / 100.0;
+
+      return Scaffold(
       appBar: AppBar(
         title: Text(l10n.get('offers')),
         actions: [
           IconButton(
             icon: const Icon(Icons.print_outlined),
-            onPressed: _printOffersCatalog,
+            onPressed: () => _printOffersCatalog(ref),
             tooltip: l10n.get('printOffersCatalog'),
           ),
         ],
@@ -227,7 +224,7 @@ class _OffersPageState extends State<OffersPage> {
                             ? '$productName ${l10n.get('unitsPerBox').replaceFirst('{count}', unitsBox.toString())}' 
                             : productName;
                         final netPrice = (offerData['price'] as num).toDouble();
-                        final grossPrice = netPrice * (1 + _vatRate);
+                        final grossPrice = netPrice * (1 + vatRate);
 
                         final offerCard = Card(
                           margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
@@ -235,7 +232,7 @@ class _OffersPageState extends State<OffersPage> {
                               leading: const Icon(Icons.local_offer, color: Colors.orange),
                               title: Text(offerData['name'] ?? 'Oferta'),
                               subtitle: Text('$productDisplayName\nCant. Mínima: ${offerData['quantity']} unid. \nPrecio: \$${grossPrice.toStringAsFixed(2)} (Neto: \$${netPrice.toStringAsFixed(2)})'),
-                              isThreeLine: true,
+                              isThreeLine: true, // Asegura que el subtítulo tenga espacio para 3 líneas
                               onTap: () => _showOfferDialog(offerDoc, products),
                             ),
                           );
@@ -286,7 +283,7 @@ class _OffersPageState extends State<OffersPage> {
       ),
       floatingActionButton: FloatingActionButton(
         onPressed: () => _showOfferDialog(null, null),
-        tooltip: 'Añadir Oferta',
+        tooltip: l10n.get('createOffer'),
         child: const Icon(Icons.add),
       ),
       bottomNavigationBar: SellerBottomNavigationBar(
@@ -298,18 +295,27 @@ class _OffersPageState extends State<OffersPage> {
         allowSamePageNavigation: true,
       ),
     );
+    });
   }
 
   void _showOfferDialog(DocumentSnapshot? offer, List<QueryDocumentSnapshot>? preloadedProducts) {
+    // Usamos un Consumer para pasar el `ref` al diálogo y que este pueda acceder al provider
     showDialog(
       context: context,
-      builder: (context) => OfferDialog(
-        user: widget.user,
-        businessId: widget.businessId,
-        firestoreService: _firestoreService,
-        offer: offer,
-        preloadedProducts: preloadedProducts,
-        vatRate: _vatRate,
+      builder: (context) => Consumer(
+        builder: (context, ref, child) {
+          final settings = ref.watch(companySettingsProvider(widget.businessId));
+          final vatRate = (settings.asData?.value.data() as Map<String, dynamic>?)?['vat_rate'] as num? ?? 21.0;
+
+          return OfferDialog(
+            user: widget.user,
+            businessId: widget.businessId,
+            firestoreService: _firestoreService,
+            offer: offer,
+            preloadedProducts: preloadedProducts,
+            vatRate: vatRate / 100.0,
+          );
+        },
       ),
     );
   }

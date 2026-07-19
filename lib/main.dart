@@ -179,9 +179,9 @@ class _SellerBottomNavigationBarState extends State<SellerBottomNavigationBar> {
       case 2: page = PaymentsPage(user: widget.user, businessId: widget.businessId, sellerId: widget.sellerId, role: effectiveRole); break;
       case 3: page = CustomersPage(user: widget.user, businessId: widget.businessId, role: effectiveRole, sellerId: widget.sellerId); break;
       case 4: page = ProductsPage(user: widget.user, businessId: widget.businessId, role: effectiveRole, sellerId: widget.sellerId); break;
-      case 5: page = OffersPage(user: widget.user, businessId: widget.businessId, role: '',); break;
+      case 5: page = OffersPage(user: widget.user, businessId: widget.businessId, role: effectiveRole, sellerId: widget.sellerId); break;
       case 6: page = StockPage(user: widget.user, businessId: widget.businessId, role: effectiveRole, sellerId: widget.sellerId); break;
-      case 7: page = SuppliersPage(user: widget.user, businessId: widget.businessId, role: '',); break;
+      case 7: page = SuppliersPage(user: widget.user, businessId: widget.businessId, role: effectiveRole, sellerId: widget.sellerId); break;
       //case 8: page = ReportsHubPage(user: widget.user, businessId: widget.businessId, role: effectiveRole, sellerId: widget.sellerId); break;
       default: return;
     }

@@ -144,33 +144,38 @@ class _SuppliersPageState extends State<SuppliersPage> {
                     endIndent: 16,
                   ),
                   itemBuilder: (context, index) {
-                    final doc = docs[index];
-                    final data = doc.data() as Map<String, dynamic>;
-                    return Dismissible(
-                      key: Key(doc.id),
-                      direction: DismissDirection.endToStart,
-                      background: Container(color: Colors.red, alignment: Alignment.centerRight, padding: const EdgeInsets.symmetric(horizontal: 20), child: const Icon(Icons.delete, color: Colors.white)),
-                      confirmDismiss: (direction) async {
-                         return await showDialog<bool>(
-                          context: context,
-                          builder: (alertContext) => AlertDialog(
-                            title: Text(l10n.get('confirmDelete')),
-                            content: Text(l10n.get('confirmDeleteSupplier')),
-                            actions: [
-                              TextButton(onPressed: () => Navigator.of(alertContext).pop(false), child: Text(l10n.get('cancel'))),
-                              TextButton(onPressed: () => Navigator.of(alertContext).pop(true), child: Text(l10n.get('delete'), style: const TextStyle(color: Colors.red))),
-                            ],
-                          ),
-                        ) ?? false;
-                      },
-                      onDismissed: (direction) => _firestoreService.deleteSupplier(doc.id),
-                      child: ListTile(
+                    final supplierDoc = docs[index];
+                    final data = supplierDoc.data() as Map<String, dynamic>;
+                    final supplierTile = ListTile(
                         leading: const Icon(Icons.business),
                         title: Text(data['name'] ?? l10n.get('noName')),
                         subtitle: Text(data['contact'] ?? ''),
-                        onTap: () => _showSupplierDialog(supplier: doc),
-                      ),
-                    );
+                        onTap: () => _showSupplierDialog(supplier: supplierDoc),
+                      );
+
+                    if (widget.role == 'admin') {
+                      return Dismissible(
+                        key: Key(supplierDoc.id),
+                        direction: DismissDirection.endToStart,
+                        background: Container(color: Colors.red, alignment: Alignment.centerRight, padding: const EdgeInsets.symmetric(horizontal: 20), child: const Icon(Icons.delete, color: Colors.white)),
+                        confirmDismiss: (direction) async {
+                           return await showDialog<bool>(
+                            context: context,
+                            builder: (alertContext) => AlertDialog(
+                              title: Text(l10n.get('confirmDelete')),
+                              content: Text(l10n.get('confirmDeleteSupplier')),
+                              actions: [
+                                TextButton(onPressed: () => Navigator.of(alertContext).pop(false), child: Text(l10n.get('cancel'))),
+                                TextButton(onPressed: () => Navigator.of(alertContext).pop(true), child: Text(l10n.get('delete'), style: const TextStyle(color: Colors.red))),
+                              ],
+                            ),
+                          ) ?? false;
+                        },
+                        onDismissed: (direction) => _firestoreService.deleteSupplier(supplierDoc.id),
+                        child: supplierTile,
+                      );
+                    }
+                    return supplierTile;
                   },
                 );
               },

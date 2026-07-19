@@ -4,6 +4,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'firestore_service.dart';
 import 'main.dart'; // Importar para usar SellerBottomNavigationBar
+import 'products.dart';
 import 'app_localizations.dart';
 import 'package:seller/pdf_generator.dart';
 
@@ -228,46 +229,52 @@ class _OffersPageState extends State<OffersPage> {
                         final netPrice = (offerData['price'] as num).toDouble();
                         final grossPrice = netPrice * (1 + _vatRate);
 
-                        return Dismissible(
-                          key: Key(offerDoc.id),
-                          direction: DismissDirection.endToStart,
-                          background: Container(
-                            color: Colors.red,
-                            alignment: Alignment.centerRight,
-                            padding: const EdgeInsets.symmetric(horizontal: 20),
-                            child: const Icon(Icons.delete, color: Colors.white),
-                          ),
-                          confirmDismiss: (direction) async {
-                            return await showDialog(
-                              context: context,
-                              builder: (context) => AlertDialog(
-                                title: const Text('Eliminar Oferta'),
-                                content: const Text('¿Estás seguro de eliminar esta oferta?'),
-                                actions: [
-                                  TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancelar')),
-                                  TextButton(
-                                    onPressed: () => Navigator.pop(context, true),
-                                    child: const Text('Eliminar', style: TextStyle(color: Colors.red)),
-                                  ),
-                                ],
-                              ),
-                            );
-                          },
-                          onDismissed: (direction) {
-                            _firestoreService.deleteOffer(offerDoc.id);
-                            ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Oferta eliminada')));
-                          },
-                          child: Card(
-                            margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                            child: ListTile(
+                        final offerCard = Card(
+                          margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                          child: ListTile(
                               leading: const Icon(Icons.local_offer, color: Colors.orange),
                               title: Text(offerData['name'] ?? 'Oferta'),
                               subtitle: Text('$productDisplayName\nCant. Mínima: ${offerData['quantity']} unid. \nPrecio: \$${grossPrice.toStringAsFixed(2)} (Neto: \$${netPrice.toStringAsFixed(2)})'),
                               isThreeLine: true,
                               onTap: () => _showOfferDialog(offerDoc, products),
                             ),
-                          ),
-                        );
+                          );
+                        
+
+                        if (widget.role == 'admin') {
+                          return Dismissible(
+                            key: Key(offerDoc.id),
+                            direction: DismissDirection.endToStart,
+                            background: Container(
+                              color: Colors.red,
+                              alignment: Alignment.centerRight,
+                              padding: const EdgeInsets.symmetric(horizontal: 20),
+                              child: const Icon(Icons.delete, color: Colors.white),
+                            ),
+                            confirmDismiss: (direction) async {
+                              return await showDialog(
+                                context: context,
+                                builder: (context) => AlertDialog(
+                                  title: const Text('Eliminar Oferta'),
+                                  content: const Text('¿Estás seguro de eliminar esta oferta?'),
+                                  actions: [
+                                    TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancelar')),
+                                    TextButton(
+                                      onPressed: () => Navigator.pop(context, true),
+                                      child: const Text('Eliminar', style: TextStyle(color: Colors.red)),
+                                    ),
+                                  ],
+                                ),
+                              );
+                            },
+                            onDismissed: (direction) {
+                              _firestoreService.deleteOffer(offerDoc.id);
+                              ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Oferta eliminada')));
+                            },
+                            child: offerCard,
+                          );
+                        }
+                        return offerCard;
                       },
                     );
                   },
@@ -328,13 +335,14 @@ class _OfferDialogState extends State<OfferDialog> {
   final TextEditingController _quantityController = TextEditingController();
   final TextEditingController _priceController = TextEditingController();
   String? _selectedProductId;
-  late Stream<QuerySnapshot> _productsStream;
+  final TextEditingController _productSearchController = TextEditingController();
+  final FocusNode _productSearchFocusNode = FocusNode();
+  String? _selectedProductName;
   bool _offerPriceIncludesVat = false;
 
   @override
   void initState() {
     super.initState();
-    _productsStream = widget.firestoreService.getProducts(widget.businessId);
     if (widget.offer != null) {
       final data = widget.offer!.data() as Map<String, dynamic>;
       _nameController.text = data['name'] ?? '';
@@ -345,113 +353,208 @@ class _OfferDialogState extends State<OfferDialog> {
       final netPrice = (data['price'] as num?)?.toDouble() ?? 0.0;
       _priceController.text = netPrice.toStringAsFixed(2);
       _selectedProductId = data['productId'];
+      // Cargar el nombre del producto para mostrarlo en el campo de búsqueda
+      _loadProductName(_selectedProductId!);
     }
+  }
+
+  Future<void> _loadProductName(String productId) async {
+    final productDoc = await widget.firestoreService.getProductById(productId);
+    if (productDoc.exists && mounted) {
+      final data = productDoc.data() as Map<String, dynamic>;
+      setState(() {
+        _selectedProductName = data['name'] as String?;
+        _productSearchController.text = _selectedProductName ?? '';
+      });
+    }
+  }
+
+  Future<void> _scanBarcodeAndSelectProduct() async {
+    // 1. Abrir el escáner
+    final barcode = await Navigator.push<String>(
+      context,
+      MaterialPageRoute(builder: (context) => const BarcodeScannerSimple()),
+    );
+
+    if (barcode == null || !mounted) return;
+
+    // 2. Buscar el producto por código de barras
+    final productDoc = await widget.firestoreService.getProductByBarcode(widget.businessId, barcode);
+
+    if (productDoc == null) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Producto no encontrado.')));
+      return;
+    }
+
+    // 3. Si se encuentra, seleccionarlo
+    final data = productDoc.data() as Map<String, dynamic>;
+    setState(() => _productSearchController.text = (data['name'] as String? ?? ''));
+  }
+
+  @override
+  void dispose() {
+    _nameController.dispose();
+    _quantityController.dispose();
+    _priceController.dispose();
+    _productSearchController.dispose();
+    _productSearchFocusNode.dispose();
+    super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
       title: Text(widget.offer == null ? 'Añadir Oferta' : 'Editar Oferta'),
-      content: SingleChildScrollView(
-        child: Form(
-          key: _formKey,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              StreamBuilder<QuerySnapshot>(
-                stream: _productsStream,
-                builder: (context, snapshot) {
-                  List<QueryDocumentSnapshot> products = [];
-                  if (snapshot.hasData) {
-                    products = snapshot.data!.docs;
-                  } else if (widget.preloadedProducts != null) {
-                    products = widget.preloadedProducts!;
-                  }
-
-                  if (products.isEmpty && snapshot.connectionState == ConnectionState.waiting) return const CircularProgressIndicator();
-
-                  final l10n = AppLocalizations.of(context);
-                  double? netPrice;
-                  if (_selectedProductId != null) {
-                    try {
-                      final prod = products.firstWhere((p) => p.id == _selectedProductId);
-                      netPrice = (prod['price'] as num?)?.toDouble();
-                    } catch (_) {}
-                  }
-
-                  return Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      DropdownButtonFormField<String>(
-                        initialValue: products.any((p) => p.id == _selectedProductId) ? _selectedProductId : null,
-                        hint: const Text('Selecciona un Producto'),
-                        isExpanded: true,
-                        items: products.map((doc) {
-                          final d = doc.data() as Map<String, dynamic>;
-                          final uBox = (d['units_box'] as num?)?.toInt() ?? 0;
-                          final dName = d['name'] ?? '';
-                          final dispName = uBox > 1 
-                              ? '$dName ${l10n.get('unitsPerBox').replaceFirst('{count}', uBox.toString())}' 
-                              : dName;
-                          return DropdownMenuItem(value: doc.id, child: Text(dispName));
-                        }).toList(),
-                        onChanged: (val) => setState(() => _selectedProductId = val),
-                        validator: (val) => val == null ? 'Requerido' : null,
-                      ),
-                      if (netPrice != null)
-                        Padding(
-                          padding: const EdgeInsets.only(top: 4.0, left: 4.0),
-                          child: Text('Precio Normal: \$${(netPrice * (1 + widget.vatRate)).toStringAsFixed(0)} (Neto: \$${netPrice.toStringAsFixed(2)})', style: const TextStyle(color: Colors.grey, fontSize: 12)),
-                        ),
-                    ],
-                  );
-                },
-              ),
-              TextFormField(controller: _nameController, decoration: const InputDecoration(labelText: 'Nombre Oferta (ej. Mayorista)')),
-              TextFormField(controller: _quantityController, decoration: const InputDecoration(labelText: 'Cantidad Mínima'), keyboardType: TextInputType.number),
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.center,
-                children: [
-                  Expanded(
-                    child: TextFormField(
-                      controller: _priceController,
-                      decoration: const InputDecoration(labelText: 'Precio Oferta', prefixText: '\$'),
-                      keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const Text('¿IVA Incl.?', style: TextStyle(fontSize: 12)),
-                      Checkbox(
-                        value: _offerPriceIncludesVat,
-                        onChanged: (value) {
-                          if (value == null) return;
-                          setState(() {
-                            _offerPriceIncludesVat = value;
-                            final priceText = _priceController.text;
-                            if (priceText.isNotEmpty) {
-                              final priceInput = double.tryParse(priceText);
-                              if (priceInput != null) {
-                                double newPrice;
-                                if (_offerPriceIncludesVat) {
-                                  newPrice = priceInput * (1 + widget.vatRate);
-                                } else {
-                                  newPrice = priceInput / (1 + widget.vatRate);
-                                }
-                                _priceController.text = newPrice.toStringAsFixed(2);
-                              }
-                            }
-                          });
+      content: SizedBox(
+        width: MediaQuery.of(context).size.width * 0.8,
+        child: SingleChildScrollView(
+          child: Form(
+            key: _formKey,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    Expanded(
+                      child: LayoutBuilder(
+                        builder: (context, constraints) {
+                          return RawAutocomplete<DocumentSnapshot>(
+                            textEditingController: _productSearchController, // Usamos el controlador
+                            focusNode: _productSearchFocusNode,
+                            optionsBuilder: (TextEditingValue textEditingValue) {
+                              return widget.firestoreService.searchProducts(widget.businessId, textEditingValue.text);
+                            },
+                            onSelected: (DocumentSnapshot selection) {
+                              final data = selection.data() as Map<String, dynamic>;
+                              setState(() {
+                                _selectedProductId = selection.id;
+                                _selectedProductName = data['name'] as String?;
+                                _productSearchController.text = _selectedProductName ?? '';
+                              });
+                            },
+                            displayStringForOption: (DocumentSnapshot option) {
+                              final data = option.data() as Map<String, dynamic>;
+                              return data['name'] as String? ?? '';
+                            },
+                            fieldViewBuilder: (context, controller, focusNode, onFieldSubmitted) {
+                              return TextFormField(
+                                controller: controller,
+                                focusNode: focusNode,
+                                decoration: InputDecoration(
+                                  labelText: 'Buscar Producto',
+                                  suffixIcon: controller.text.isNotEmpty
+                                      ? IconButton(
+                                          icon: const Icon(Icons.clear),
+                                          onPressed: () {
+                                            controller.clear();
+                                            setState(() {
+                                              _selectedProductId = null;
+                                              _selectedProductName = null;
+                                            });
+                                          },
+                                        )
+                                      : null,
+                                ),
+                                validator: (value) {
+                                  if (_selectedProductId == null) {
+                                    return 'Debes seleccionar un producto';
+                                  }
+                                  return null;
+                                },
+                                onChanged: (text) {
+                                  if (text != _selectedProductName) {
+                                    setState(() {
+                                      _selectedProductId = null;
+                                    });
+                                  }
+                                },
+                              );
+                            },
+                            optionsViewBuilder: (context, onSelected, options) {
+                              return Align(
+                                alignment: Alignment.topLeft,
+                                child: Material(
+                                  elevation: 4.0, // Sombra para el desplegable
+                                  child: ConstrainedBox(
+                                    constraints: BoxConstraints(maxHeight: 200, maxWidth: constraints.maxWidth),
+                                    child: ListView.builder(
+                                      padding: EdgeInsets.zero,
+                                      shrinkWrap: true,
+                                      itemCount: options.length,
+                                      itemBuilder: (context, index) {
+                                        final option = options.elementAt(index);
+                                        final data = option.data() as Map<String, dynamic>;
+                                        final name = data['name'] as String? ?? 'Sin Nombre';
+                                        final price = (data['price'] as num?)?.toDouble() ?? 0.0;
+                                        return ListTile(
+                                          title: Text(name),
+                                          trailing: Text('\$${price.toStringAsFixed(2)}'),
+                                          onTap: () => onSelected(option),
+                                        );
+                                      },
+                                    ),
+                                  ),
+                                ),
+                              );
+                            },
+                          );
                         },
-                        materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
                       ),
-                    ],
-                  ),
-                ],
-              ),
-            ],
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.qr_code_scanner),
+                      onPressed: _scanBarcodeAndSelectProduct,
+                      tooltip: 'Escanear código de barras',
+                    ),
+                  ],
+                ),
+                TextFormField(controller: _nameController, decoration: const InputDecoration(labelText: 'Nombre Oferta (ej. Mayorista)')),
+                TextFormField(controller: _quantityController, decoration: const InputDecoration(labelText: 'Cantidad Mínima'), keyboardType: TextInputType.number),
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    Expanded(
+                      child: TextFormField(
+                        controller: _priceController,
+                        decoration: const InputDecoration(labelText: 'Precio Oferta', prefixText: '\$'),
+                        keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Text('¿IVA Incl.?', style: TextStyle(fontSize: 12)),
+                        Checkbox(
+                          value: _offerPriceIncludesVat,
+                          onChanged: (value) {
+                            if (value == null) return;
+                            setState(() {
+                              _offerPriceIncludesVat = value;
+                              final priceText = _priceController.text;
+                              if (priceText.isNotEmpty) {
+                                final priceInput = double.tryParse(priceText);
+                                if (priceInput != null) {
+                                  double newPrice;
+                                  if (_offerPriceIncludesVat) {
+                                    newPrice = priceInput * (1 + widget.vatRate);
+                                  } else {
+                                    newPrice = priceInput / (1 + widget.vatRate);
+                                  }
+                                  _priceController.text = newPrice.toStringAsFixed(2);
+                                }
+                              }
+                            });
+                          },
+                          materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ],
+            ),
           ),
         ),
       ),

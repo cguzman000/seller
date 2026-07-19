@@ -454,6 +454,7 @@ class _ProductsPageState extends State<ProductsPage> {
               vatRate: _vatRate,
               sortOption: _sortOption,
               onProductTap: (product) => _showProductDialog(product: product),
+              role: widget.role,
             ),
           ),
         ],
@@ -486,6 +487,7 @@ class ProductList extends StatelessWidget {
   final double vatRate;
   final SortOption sortOption;
   final Function(DocumentSnapshot) onProductTap;
+  final String role;
 
   const ProductList({
     super.key,
@@ -498,6 +500,7 @@ class ProductList extends StatelessWidget {
     required this.vatRate,
     required this.sortOption,
     required this.onProductTap,
+    required this.role,
   });
 
   @override
@@ -531,32 +534,47 @@ class ProductList extends StatelessWidget {
               return const Center(child: CircularProgressIndicator());
             }
             if (productSnapshot.hasError) {
-              final error = productSnapshot.error.toString();
-              if (error.contains('failed-precondition') || error.contains('index')) {
-                return Center(
-                  child: Padding(
-                    padding: const EdgeInsets.all(16.0),
+              final errorString = productSnapshot.error.toString();
+              final isIndexError = errorString.contains('firestore/failed-precondition') || errorString.contains('index');
+              
+              if (isIndexError) {
+                // Extraer la URL del mensaje de error
+                final urlMatch = RegExp(r'https://console.firebase.google.com[^\s]+').firstMatch(errorString);
+                final url = urlMatch?.group(0);
+
+                return Padding(
+                  padding: const EdgeInsets.all(24.0),
+                  child: Center(
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        const Icon(Icons.warning_amber_rounded, color: Colors.orange, size: 48),
+                        const Icon(Icons.error_outline, color: Colors.red, size: 50),
                         const SizedBox(height: 16),
-                        const Text('Falta un índice en Firebase', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-                        const SizedBox(height: 8),
-                        const Text('Selecciona y copia el siguiente enlace para crearlo:', textAlign: TextAlign.center),
-                        const SizedBox(height: 16),
-                        Container(
-                          height: 200, // Altura fija para el cuadro de texto
-                          padding: const EdgeInsets.all(8.0),
-                          decoration: BoxDecoration(
-                            border: Border.all(color: Colors.grey.shade300),
-                            borderRadius: BorderRadius.circular(8),
-                            color: Colors.grey.shade50,
-                          ),
-                          child: SingleChildScrollView( // Permite el scroll
-                            child: SelectableText(error, style: const TextStyle(color: Colors.blue, fontSize: 12)),
-                          ),
+                        Text(
+                          'Acción Requerida: Falta Índice',
+                          style: Theme.of(context).textTheme.headlineSmall,
+                          textAlign: TextAlign.center,
                         ),
+                        const SizedBox(height: 12),
+                        const Text(
+                          'Para que el filtro de productos funcione, Firestore necesita un índice. Copia el siguiente enlace y ábrelo en un navegador para crearlo con un solo clic.',
+                          textAlign: TextAlign.center,
+                        ),
+                        if (url != null) ...[
+                          const SizedBox(height: 20),
+                          Container(
+                            padding: const EdgeInsets.all(12),
+                            decoration: BoxDecoration(
+                              color: Colors.blue.shade50,
+                              borderRadius: BorderRadius.circular(8),
+                              border: Border.all(color: Colors.blue.shade200),
+                            ),
+                            child: SelectableText(
+                              url,
+                              style: const TextStyle(color: Colors.blue, decoration: TextDecoration.underline),
+                            ),
+                          ),
+                        ],
                       ],
                     ),
                   ),
@@ -677,20 +695,9 @@ class ProductList extends StatelessWidget {
     final unitsBox = (data['units_box'] as num?)?.toInt() ?? 0;
     final imageUrl = data['imageUrl']?.toString();
     
-    return Dismissible(
-      key: Key(doc.id),
-      direction: DismissDirection.endToStart,
-      background: Container(
-        color: Colors.red,
-        alignment: Alignment.centerRight,
-        padding: const EdgeInsets.symmetric(horizontal: 20.0),
-        child: const Icon(Icons.delete, color: Colors.white),
-      ),
-      confirmDismiss: (direction) => _confirmDismissProduct(context, doc.id),
-      onDismissed: (direction) => _onProductDismissed(context, doc.id),
-      child: InkWell(
-        onTap: () => onProductTap(doc),
-        child: Container(
+    final productItem = InkWell(
+      onTap: () => onProductTap(doc),
+      child: Container(
           color: isActive ? Colors.transparent : Colors.grey.shade50,
           child: Opacity(
             opacity: isActive ? 1.0 : 0.5,
@@ -787,9 +794,25 @@ class ProductList extends StatelessWidget {
             ),
           ),
         ),
-      ),
-      ),
+    ),
     );
+
+    if (role == 'admin') {
+      return Dismissible(
+        key: Key(doc.id),
+        direction: DismissDirection.endToStart,
+        background: Container(
+          color: Colors.red,
+          alignment: Alignment.centerRight,
+          padding: const EdgeInsets.symmetric(horizontal: 20.0),
+          child: const Icon(Icons.delete, color: Colors.white),
+        ),
+        confirmDismiss: (direction) => _confirmDismissProduct(context, doc.id),
+        onDismissed: (direction) => _onProductDismissed(context, doc.id),
+        child: productItem,
+      );
+    }
+    return productItem;
   }
 
   void _showLargeImageDialog(BuildContext context, List<DocumentSnapshot> products, int initialIndex) {

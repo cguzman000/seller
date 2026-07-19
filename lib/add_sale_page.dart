@@ -1101,34 +1101,8 @@ class _AddSalePageState extends State<AddSalePage> {
                                                 _productController,
                                             focusNode: _productFocusNode,
                                             optionsBuilder: (TextEditingValue
-                                                textEditingValue) async {
-                                              final snapshot =
-                                                  await _firestoreService
-                                                      .getProducts(
-                                                          widget.businessId)
-                                                      .first;
-                                              final searchTerm = textEditingValue
-                                                  .text
-                                                  .trim()
-                                                  .toLowerCase();
-                                              if (searchTerm.isEmpty) {
-                                                return snapshot.docs;
-                                              }
-
-                                              return snapshot.docs.where((doc) {
-                                                final data = doc.data()
-                                                    as Map<String, dynamic>;
-                                                final name = (data['name'] as String? ?? '')
-                                                    .toLowerCase();
-                                                final barcode = (data['bar_code']
-                                                            as String? ??
-                                                        '')
-                                                    .toLowerCase();
-                                                return name
-                                                        .contains(searchTerm) ||
-                                                    barcode
-                                                        .contains(searchTerm);
-                                              });
+                                                textEditingValue) {
+                                              return _firestoreService.searchProducts(widget.businessId, textEditingValue.text);
                                             },
                                             displayStringForOption:
                                                 (DocumentSnapshot option) {

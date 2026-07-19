@@ -610,6 +610,23 @@ class FirestoreService {
     return query.orderBy('createdAt', descending: true).snapshots();
   }
 
+  /// Busca productos por nombre (prefijo) para autocompletado.
+  Future<Iterable<DocumentSnapshot>> searchProducts(String businessId, String searchTerm) async {
+    if (searchTerm.isEmpty) {
+      // Devuelve una lista limitada si no hay búsqueda para no sobrecargar.
+      final snapshot = await _db.collection('products').where('userId', isEqualTo: businessId).orderBy('createdAt', descending: true).limit(50).get();
+      return snapshot.docs;
+    }
+
+    final term = searchTerm.toUpperCase();
+    final snapshot = await _db
+        .collection('products')
+        .where('userId', isEqualTo: businessId)
+        .where('name', isGreaterThanOrEqualTo: term)
+        .where('name', isLessThan: '$term\uf8ff')
+        .get();
+    return snapshot.docs;
+  }
   /// Obtiene productos específicos por sus IDs.
   Future<List<DocumentSnapshot>> getProductsByIds(String businessId, List<String> productIds) async {
     if (productIds.isEmpty) {

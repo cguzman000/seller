@@ -1,4 +1,4 @@
-# katalog
+# Seller
 
 A new Flutter project.
 

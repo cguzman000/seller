@@ -216,13 +216,17 @@ class _PaymentsPageState extends State<PaymentsPage> {
                     final customerName = data['customerName'] as String? ?? 'N/A';
                     final paymentType = data['payment_type'] as String? ?? 'Efectivo';
 
+                    Color paymentIconColor;
                     IconData paymentIcon;
                     if (paymentType == 'Efectivo') {
                       paymentIcon = Icons.payments;
+                      paymentIconColor = Colors.green;
                     } else if (paymentType == 'Banco') {
                       paymentIcon = Icons.credit_card;
+                      paymentIconColor = Theme.of(context).colorScheme.primary;
                     } else {
                       paymentIcon = Icons.help_outline;
+                      paymentIconColor = Theme.of(context).colorScheme.primary;
                     }
 
                     final itemWidget = Dismissible(
@@ -285,7 +289,7 @@ class _PaymentsPageState extends State<PaymentsPage> {
                           mainAxisAlignment: MainAxisAlignment.center,
                           crossAxisAlignment: CrossAxisAlignment.end,
                           children: [
-                            Icon(paymentIcon, color: Theme.of(context).colorScheme.primary),
+                            Icon(paymentIcon, color: paymentIconColor),
                             Text(
                               '\$${NumberFormat.currency(locale: 'es_AR', symbol: '', decimalDigits: 0).format(amount)}',
                               style: const TextStyle(
@@ -432,7 +436,7 @@ class _PaymentsPageState extends State<PaymentsPage> {
               onTap: () { setState(() => _filterPaymentType = null); Navigator.pop(context); },
             ),
             ListTile(
-              leading: const Icon(Icons.payments),
+              leading: const Icon(Icons.payments, color: Colors.green),
               title: Text(l10n.get('cash')),
               onTap: () { setState(() => _filterPaymentType = 'Efectivo'); Navigator.pop(context); },
             ),

@@ -182,7 +182,7 @@ class _OffersPageState extends State<OffersPage> {
                 if (!productSnapshot.hasData) return const Center(child: CircularProgressIndicator());
                 
                 final products = productSnapshot.data!.docs;
-                final productDataMap = {for (var doc in products) doc.id: doc.data() as Map<String, dynamic>};
+                // productDataMap is not directly used here anymore, productDoc is available in the loop
 
                 return StreamBuilder<QuerySnapshot>(
                   stream: _firestoreService.getAllOffers(widget.businessId),
@@ -194,84 +194,117 @@ class _OffersPageState extends State<OffersPage> {
                       return const Center(child: Text('No hay ofertas registradas.'));
                     }
 
-                    final offers = offerSnapshot.data!.docs;
-                    final filteredOffers = offers.where((doc) {
-                      if (_searchTerm.isEmpty) return true;
-                      final data = doc.data() as Map<String, dynamic>;
-                      final pId = data['productId'] as String?;
-                      if (pId == null) return false;
-                      final productData = productDataMap[pId];
-                      final pName = (productData?['name'] as String? ?? '').toLowerCase();
-                      final oName = data['name'] as String? ?? '';
-                      final term = _searchTerm.toLowerCase();
-                      return pName.toLowerCase().contains(term) || oName.toLowerCase().contains(term);
+                    // Group offers by product ID
+                    final Map<String, List<DocumentSnapshot>> offersByProductId = {};
+                    for (var offerDoc in offerSnapshot.data!.docs) {
+                      final data = offerDoc.data() as Map<String, dynamic>;
+                      final productId = data['productId'] as String?;
+                      if (productId != null) {
+                        offersByProductId.putIfAbsent(productId, () => []).add(offerDoc);
+                      }
+                    }
+
+                    // Filter products based on search term
+                    final filteredProducts = products.where((productDoc) {
+                      if (_searchTerm.isEmpty) return true; // If no search term, consider all products for now
+                      final data = productDoc.data() as Map<String, dynamic>;
+                      final productName = (data['name'] as String? ?? '').toLowerCase();
+                      return productName.contains(_searchTerm.toLowerCase());
                     }).toList();
 
-                    if (filteredOffers.isEmpty) {
+                    // Remove products that have no offers and are not explicitly searched for
+                    // This ensures we only show products that either match the search term OR have offers.
+                    filteredProducts.removeWhere((productDoc) =>
+                        (offersByProductId[productDoc.id]?.isEmpty ?? true) && _searchTerm.isEmpty);
+
+                    if (filteredProducts.isEmpty) {
                       return const Center(child: Text('No se encontraron ofertas.'));
                     }
 
                     return ListView.builder(
-                      itemCount: filteredOffers.length,
+                      itemCount: filteredProducts.length,
                       itemBuilder: (context, index) {
-                        final offerDoc = filteredOffers[index];
-                        final offerData = offerDoc.data() as Map<String, dynamic>;
-                        final productId = offerData['productId'] as String;
-                        final productData = productDataMap[productId];
-                        final productName = productData?['name'] ?? 'Producto no encontrado';
-                        final unitsBox = (productData?['units_box'] as num?)?.toInt() ?? 0;
+                        final productDoc = filteredProducts[index];
+                        final productData = productDoc.data() as Map<String, dynamic>;
+                        final productName = productData['name'] ?? 'Producto no encontrado';
+                        final unitsBox = (productData['units_box'] as num?)?.toInt() ?? 0;
                         final productDisplayName = unitsBox > 1 
                             ? '$productName ${l10n.get('unitsPerBox').replaceFirst('{count}', unitsBox.toString())}' 
                             : productName;
-                        final netPrice = (offerData['price'] as num).toDouble();
-                        final grossPrice = netPrice * (1 + vatRate);
 
-                        final offerCard = Card(
+                        final offersForThisProduct = offersByProductId[productDoc.id] ?? [];
+
+                        return Card(
                           margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                          child: ListTile(
-                              leading: const Icon(Icons.local_offer, color: Colors.orange),
-                              title: Text(offerData['name'] ?? 'Oferta'),
-                              subtitle: Text('$productDisplayName\nCant. Mínima: ${offerData['quantity']} unid. \nPrecio: \$${grossPrice.toStringAsFixed(2)} (Neto: \$${netPrice.toStringAsFixed(2)})'),
-                              isThreeLine: true, // Asegura que el subtítulo tenga espacio para 3 líneas
-                              onTap: () => _showOfferDialog(offerDoc, products),
-                            ),
-                          );
-                        
-
-                        if (widget.role == 'admin') {
-                          return Dismissible(
-                            key: Key(offerDoc.id),
-                            direction: DismissDirection.endToStart,
-                            background: Container(
-                              color: Colors.red,
-                              alignment: Alignment.centerRight,
-                              padding: const EdgeInsets.symmetric(horizontal: 20),
-                              child: const Icon(Icons.delete, color: Colors.white),
-                            ),
-                            confirmDismiss: (direction) async {
-                              return await showDialog(
-                                context: context,
-                                builder: (context) => AlertDialog(
-                                  title: const Text('Eliminar Oferta'),
-                                  content: const Text('¿Estás seguro de eliminar esta oferta?'),
-                                  actions: [
-                                    TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancelar')),
-                                    TextButton(
-                                      onPressed: () => Navigator.pop(context, true),
-                                      child: const Text('Eliminar', style: TextStyle(color: Colors.red)),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Padding(
+                                padding: const EdgeInsets.all(8.0),
+                                child: Row(
+                                  children: [
+                                    Expanded(
+                                      child: Text(
+                                        productDisplayName,
+                                        style: const TextStyle(fontSize: 16),
+                                      ),
                                     ),
                                   ],
                                 ),
-                              );
-                            },
-                            onDismissed: (direction) {
-                              _firestoreService.deleteOffer(offerDoc.id);
-                              ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Oferta eliminada')));
-                            },
-                            child: offerCard,
-                          );
-                        }
-                        return offerCard;
+                              ),
+                              ...offersForThisProduct.map((offerDoc) {
+                                final offerData = offerDoc.data() as Map<String, dynamic>;
+                                final netPrice = (offerData['price'] as num).toDouble();
+                                final grossPrice = netPrice * (1 + vatRate);
+
+                                final offerListTile = ListTile(
+                                  leading: const Icon(Icons.local_offer, color: Colors.orange),
+                                  title: Text(offerData['name'] ?? 'Oferta'),
+                                  subtitle: Text(
+                                    'Cant. Mínima: ${offerData['quantity']} unid. \nPrecio: \$${grossPrice.toStringAsFixed(2)} (Neto: \$${netPrice.toStringAsFixed(2)})',
+                                  ),
+                                  isThreeLine: true,
+                                  onTap: () => _showOfferDialog(offerDoc, products), // Pass all products for autocomplete in dialog
+                                );
+
+                                if (widget.role == 'admin') {
+                                  return Dismissible(
+                                    key: Key(offerDoc.id),
+                                    direction: DismissDirection.endToStart,
+                                    background: Container(
+                                      color: Colors.red,
+                                      alignment: Alignment.centerRight,
+                                      padding: const EdgeInsets.symmetric(horizontal: 20),
+                                      child: const Icon(Icons.delete, color: Colors.white),
+                                    ),
+                                    confirmDismiss: (direction) async {
+                                      return await showDialog(
+                                        context: context,
+                                        builder: (context) => AlertDialog(
+                                          title: Text(l10n.get('deleteOfferConfirm')),
+                                          content: Text(l10n.get('confirmDelete')),
+                                          actions: [
+                                            TextButton(onPressed: () => Navigator.pop(context, false), child: Text(l10n.get('cancel'))),
+                                            TextButton(
+                                              onPressed: () => Navigator.pop(context, true),
+                                              child: Text(l10n.get('delete'), style: const TextStyle(color: Colors.red)),
+                                            ),
+                                          ],
+                                        ),
+                                      );
+                                    },
+                                    onDismissed: (direction) {
+                                      _firestoreService.deleteOffer(offerDoc.id);
+                                      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(l10n.get('offerDeleted'))));
+                                    },
+                                    child: offerListTile,
+                                  );
+                                }
+                                return offerListTile;
+                              }),
+                            ],
+                          ),
+                        );
                       },
                     );
                   },

@@ -171,7 +171,7 @@ class _CustomersPageState extends State<CustomersPage> {
                   }
 
                   if (!context.mounted) return;
-                  Navigator.of(context).pop();
+                  Navigator.of(context).pop(); 
                 }
               },
               child: Text(l10n.get('save')),
@@ -371,8 +371,8 @@ class _CustomersPageState extends State<CustomersPage> {
                           ],
                         ),
                         trailing: IconButton(
-                          icon: const Icon(Icons.payment, color: Colors.green),
-                          tooltip: l10n.get('newPayment'),
+                          icon: const Icon(Icons.monetization_on, color: Colors.green),
+                          tooltip: l10n.get('payOnAccount'),
                           onPressed: () => _startPaymentFlowForCustomer(doc),
                         ),
                         onTap: () => _showCustomerDialog(customer: doc),

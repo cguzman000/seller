@@ -24,9 +24,9 @@ class SaleProduct {
 class SaleItem {
   final SaleProduct product;
   double salePrice; // Precio al momento de la venta
-  int quantity;
+  double quantity;
 
-  SaleItem({required this.product, required this.salePrice, this.quantity = 1});
+  SaleItem({required this.product, required this.salePrice, this.quantity = 1.0});
 
   // Usa el precio de venta guardado para el cálculo, no el precio actual del producto.
   double get totalPrice => salePrice * quantity;
@@ -192,21 +192,21 @@ class _AddSalePageState extends State<AddSalePage> {
       if (productDoc.exists) {
         // Usamos el precio guardado en la venta, no el precio actual del producto.
         final historicPrice = (itemMap['price'] as num).toDouble();
-        final productData = productDoc.data() as Map<String, dynamic>;
+        final productData = productDoc.data() as Map<String, dynamic>;        
         final saleProduct = SaleProduct(id: productDoc.id, name: productData['name'], stock: productData['stock'] ?? 0);
-        _saleItems.add(SaleItem(product: saleProduct, quantity: itemMap['quantity'], salePrice: historicPrice));
+        _saleItems.add(SaleItem(product: saleProduct, quantity: (itemMap['quantity'] as num).toDouble(), salePrice: historicPrice));
       } else {
         // El producto fue eliminado. Usamos los datos históricos.
         final historicPrice = (itemMap['price'] as num).toDouble();
         final saleProduct = SaleProduct(id: itemMap['productId'], name: itemMap['productName'] ?? 'Producto Eliminado');
-        _saleItems.add(SaleItem(product: saleProduct, quantity: itemMap['quantity'], salePrice: historicPrice));
+        _saleItems.add(SaleItem(product: saleProduct, quantity: (itemMap['quantity'] as num).toDouble(), salePrice: historicPrice));
       }
     }
     _calculateTotal();
     setState(() => _isLoading = false);
   }
 
-  void _addProductToSale(DocumentSnapshot product, {required double price, int quantity = 1}) {
+  void _addProductToSale(DocumentSnapshot product, {required double price, double quantity = 1.0}) {
     setState(() {
       // Verificar si el producto ya está en la lista
       final existingItemIndex = _saleItems.indexWhere((item) => item.product.id == product.id);
@@ -1064,7 +1064,7 @@ class _AddSalePageState extends State<AddSalePage> {
                                         SizedBox(
                                           width: 50,
                                           child: Text(
-                                            '${item.quantity}',
+                                            item.quantity.toStringAsFixed(item.quantity.truncateToDouble() == item.quantity ? 0 : 2),
                                             textAlign: TextAlign.center,
                                             style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
                                           ),
@@ -1103,7 +1103,23 @@ class _AddSalePageState extends State<AddSalePage> {
                                             focusNode: _productFocusNode,
                                             optionsBuilder: (TextEditingValue
                                                 textEditingValue) {
-                                              return _firestoreService.searchProducts(widget.businessId, textEditingValue.text);
+                                              // Si el campo de búsqueda está vacío, no devolvemos nada para no sobrecargar.
+                                              if (textEditingValue.text.trim().isEmpty) {
+                                                return const Iterable<DocumentSnapshot>.empty();
+                                              }
+                                              // Buscamos todos los productos y filtramos en el cliente para permitir búsquedas "contains".
+                                              return _firestoreService
+                                                  .getProducts(widget.businessId)
+                                                  .first
+                                                  .then((snapshot) {
+                                                final searchTerm = textEditingValue.text.trim().toUpperCase();
+                                                return snapshot.docs.where((doc) {
+                                                  final data = doc.data() as Map<String, dynamic>;
+                                                  final name = (data['name'] as String? ?? '').toUpperCase();
+                                                  // Filtramos por nombre que contenga el término de búsqueda.
+                                                  return name.contains(searchTerm);
+                                                });
+                                              });
                                             },
                                             displayStringForOption:
                                                 (DocumentSnapshot option) {
@@ -1555,7 +1571,7 @@ class _AddSalePageState extends State<AddSalePage> {
                       if (selectionContext != null && selectionContext.mounted) Navigator.of(selectionContext).pop();
                       
                       int quantityToAdd = minQty > 0 ? minQty.toInt() : 1;
-                      _addProductToSale(product, price: offerPrice, quantity: quantityToAdd);
+                      _addProductToSale(product, price: offerPrice, quantity: quantityToAdd.toDouble());
                     },
                   );
                 }),
@@ -1579,7 +1595,7 @@ class _EditSaleItemDialog extends StatefulWidget {
   final double vatRate;
   final String businessId;
   final FirestoreService firestoreService;
-  final Function(int quantity, double price) onUpdate;
+  final Function(double quantity, double price) onUpdate;
   final VoidCallback onDelete;
 
   const _EditSaleItemDialog({
@@ -1600,7 +1616,7 @@ class _EditSaleItemDialogState extends State<_EditSaleItemDialog> {
   late TextEditingController _priceController;
   bool _isLoading = true;
   double _basePrice = 0.0;
-  List<Map<String, dynamic>> _offers = [];
+  List<DocumentSnapshot> _offers = [];
   bool _priceIncludesVat = true;
 
   @override
@@ -1610,6 +1626,13 @@ class _EditSaleItemDialogState extends State<_EditSaleItemDialog> {
     final initialGrossPrice = widget.item.salePrice * (1 + widget.vatRate);
     _priceController = TextEditingController(text: initialGrossPrice.toStringAsFixed(2));
     _loadData();
+
+    // Seleccionar todo el texto en el campo de cantidad después de que se construya el frame.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        _quantityController.selection = TextSelection(baseOffset: 0, extentOffset: _quantityController.text.length);
+      }
+    });
   }
 
   @override
@@ -1631,7 +1654,7 @@ class _EditSaleItemDialogState extends State<_EditSaleItemDialog> {
       }
 
       final offersSnapshot = await widget.firestoreService.getOffersOnce(widget.item.product.id, widget.businessId);
-      _offers = offersSnapshot.docs.map((d) => d.data() as Map<String, dynamic>).toList();
+      _offers = offersSnapshot.docs;
     } catch (e) {
       debugPrint('Error loading product data: $e');
       _basePrice = widget.item.salePrice;
@@ -1645,10 +1668,11 @@ class _EditSaleItemDialogState extends State<_EditSaleItemDialog> {
   }
 
   void _onQuantityChanged(String value) {
-    final qty = int.tryParse(value);
+    final qty = double.tryParse(value);
     if (qty != null && !_isLoading) {
       double bestPrice = _basePrice;
-      for (var offer in _offers) {
+      for (var offerDoc in _offers) {
+        final offer = offerDoc.data() as Map<String, dynamic>;
         final minQty = (offer['quantity'] as num).toDouble();
         final offerPrice = (offer['price'] as num).toDouble();
         if (qty >= minQty) {
@@ -1691,7 +1715,7 @@ class _EditSaleItemDialogState extends State<_EditSaleItemDialog> {
                 children: [
                   TextField(
                     controller: _quantityController,
-                    keyboardType: TextInputType.number,
+                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
                     decoration:
                         InputDecoration(labelText: l10n.get('quantityLabel')),
                     autofocus: true,
@@ -1759,7 +1783,7 @@ class _EditSaleItemDialogState extends State<_EditSaleItemDialog> {
               onPressed: _isLoading
                   ? null
                   : () {
-                  final newQuantity = int.tryParse(_quantityController.text) ?? widget.item.quantity;
+                  final newQuantity = double.tryParse(_quantityController.text) ?? widget.item.quantity;
                   final inputValue = double.tryParse(_priceController.text) ?? 0.0;
                   double finalNetPrice;
                   if (_priceIncludesVat) {

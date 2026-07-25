@@ -15,9 +15,9 @@ import 'sales.dart';
 class SaleProduct {
   final String id;
   final String name;
-  final int stock;
+  final double stock;
 
-  SaleProduct({required this.id, required this.name, this.stock = 0});
+  SaleProduct({required this.id, required this.name, this.stock = 0.0});
 }
 
 // Modelo simple para representar un ítem en el carrito de venta
@@ -65,6 +65,7 @@ class _AddSalePageState extends State<AddSalePage> {
   String? _companyName;
   double _vatRate = 0.0; // Para almacenar la tasa de IVA
   String? _companyLogoUrl;
+  int _decimalPlaces = 2; // Valor por defecto para los decimales
   String? _sellerNameFromDb;
   String? _originalSellerName; // Nombre del vendedor original (para mostrar al editar/ver)
 
@@ -136,6 +137,7 @@ class _AddSalePageState extends State<AddSalePage> {
         // Usamos 21.0 como fallback si no está configurado
         _vatRate = (settingsData?['vat_rate'] as num? ?? 21.0) / 100.0;
         _companyName = (settingsData?['company_name'] as String?)?.toUpperCase();
+        _decimalPlaces = (settingsData?['decimal_places'] as num?)?.toInt() ?? 2;
         _companyLogoUrl = settingsData?['company_logo_url'] as String?;
       });
     }
@@ -193,7 +195,8 @@ class _AddSalePageState extends State<AddSalePage> {
         // Usamos el precio guardado en la venta, no el precio actual del producto.
         final historicPrice = (itemMap['price'] as num).toDouble();
         final productData = productDoc.data() as Map<String, dynamic>;        
-        final saleProduct = SaleProduct(id: productDoc.id, name: productData['name'], stock: productData['stock'] ?? 0);
+        final stock = (productData['stock'] as num?)?.toDouble() ?? 0.0;
+        final saleProduct = SaleProduct(id: productDoc.id, name: productData['name'], stock: stock);
         _saleItems.add(SaleItem(product: saleProduct, quantity: (itemMap['quantity'] as num).toDouble(), salePrice: historicPrice));
       } else {
         // El producto fue eliminado. Usamos los datos históricos.
@@ -219,7 +222,7 @@ class _AddSalePageState extends State<AddSalePage> {
         final data = product.data() as Map<String, dynamic>?;
         final name = data?['name']?.toString() ?? 'Sin Nombre';
         final stockVal = data?['stock'];
-        final stock = (stockVal is num) ? stockVal.toInt() : (int.tryParse(stockVal?.toString() ?? '0') ?? 0);
+        final stock = (stockVal is num) ? stockVal.toDouble() : (double.tryParse(stockVal?.toString() ?? '0') ?? 0.0);
         final saleProduct = SaleProduct(id: product.id, name: name, stock: stock);
         _saleItems.add(SaleItem(product: saleProduct, quantity: quantity, salePrice: price));
       }
@@ -1207,12 +1210,9 @@ class _AddSalePageState extends State<AddSalePage> {
                                                               as Map<String,
                                                                   dynamic>;
                                                           final name =
-                                                              data['name'] ??
-                                                                  'Sin Nombre';
-                                                          final stock =
-                                                              data['stock']
-                                                                      ?.toString() ??
-                                                                  '0';
+                                                              data['name'] ?? 'Sin Nombre';
+                                                          final stockNum = (data['stock'] is num) ? (data['stock'] as num).toDouble() : 0.0;
+                                                          final stock = stockNum.toStringAsFixed(_decimalPlaces);
                                                           dynamic rawPrice =
                                                               data['price'];
                                                           double price = (rawPrice
@@ -1672,7 +1672,7 @@ class _EditSaleItemDialogState extends State<_EditSaleItemDialog> {
     if (qty != null && !_isLoading) {
       double bestPrice = _basePrice;
       for (var offerDoc in _offers) {
-        final offer = offerDoc.data() as Map<String, dynamic>;
+        final offer = offerDoc.data() as Map<String, dynamic>? ?? {};
         final minQty = (offer['quantity'] as num).toDouble();
         final offerPrice = (offer['price'] as num).toDouble();
         if (qty >= minQty) {

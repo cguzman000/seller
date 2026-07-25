@@ -118,7 +118,7 @@ class FirestoreService {
   }
 
   /// Añade un nuevo producto a la colección 'products'.
-  Future<DocumentReference> addProduct(String userId, String name, String? description, String? barCode, double purchPrice, bool purchasePriceIncludesVat, double price, int stock, int safetyStock, int? unitsBox, String? imageUrl, String? categoryId, String? supplierId, bool state, {File? imageFile}) async {
+  Future<DocumentReference> addProduct(String userId, String name, String? description, String? barCode, double purchPrice, bool purchasePriceIncludesVat, double price, double stock, double safetyStock, int? unitsBox, String? imageUrl, String? categoryId, String? supplierId, bool state, {File? imageFile}) async {
     // 1. Crea el documento del producto en Firestore SIN la URL de la imagen.
     // Esto nos da un ID de producto estable de inmediato.
     DocumentReference productRef = await _db.collection('products').add({
@@ -151,7 +151,7 @@ class FirestoreService {
   }
 
   /// Actualiza un producto existente en la colección 'products'.
-  Future<void> updateProduct(String productId, String name, String? description, String? barCode, double purchPrice, bool purchasePriceIncludesVat, double price, int stock, int safetyStock, int? unitsBox, String? imageUrl, String? categoryId, String? supplierId, bool state, {File? imageFile}) async {
+  Future<void> updateProduct(String productId, String name, String? description, String? barCode, double purchPrice, bool purchasePriceIncludesVat, double price, double stock, double safetyStock, int? unitsBox, String? imageUrl, String? categoryId, String? supplierId, bool state, {File? imageFile}) async {
     final Map<String, dynamic> updates = {
       'categoryId': categoryId,
       'supplierId': supplierId,
@@ -247,12 +247,12 @@ class FirestoreService {
   }
 
   /// Actualiza solo el stock de un producto.
-  Future<void> updateProductStock(String productId, int newStock) {
+  Future<void> updateProductStock(String productId, double newStock) {
     return _db.collection('products').doc(productId).update({'stock': newStock});
   }
 
   /// Suma una cantidad al stock existente (puede ser negativa).
-  Future<void> incrementProductStock(String productId, int amount) {
+  Future<void> incrementProductStock(String productId, num amount) {
     return _db.collection('products').doc(productId).update({'stock': FieldValue.increment(amount)});
   }
 
@@ -392,7 +392,7 @@ class FirestoreService {
     // Reducir stock de los productos
     for (var item in items) {
       final productRef = _db.collection('products').doc(item['productId']);
-      batch.update(productRef, {'stock': FieldValue.increment(-item['quantity'])});
+      batch.update(productRef, {'stock': FieldValue.increment(-(item['quantity'] as num))});
     }
 
     await batch.commit();
@@ -589,7 +589,9 @@ class FirestoreService {
 
   /// Obtiene un Stream de todos los productos.
   Stream<QuerySnapshot> getProducts(String userId, {String? categoryId, String? supplierId, String? searchTerm}) {
-    Query query = _db.collection('products').where('userId', isEqualTo: userId);
+    Query query = _db.collection('products')
+        .where('userId', isEqualTo: userId)
+        .where('state', isEqualTo: true); // Solo productos activos
 
     // Si se proporciona un categoryId, filtramos por categoría.
     if (categoryId != null && categoryId.isNotEmpty) {
@@ -1130,7 +1132,7 @@ class FirestoreService {
     // 2. Restaurar stock
     for (var item in items) {
       final productRef = _db.collection('products').doc(item['productId']);
-      batch.update(productRef, {'stock': FieldValue.increment(item['quantity'])});
+      batch.update(productRef, {'stock': FieldValue.increment(item['quantity'] as num)});
     }
 
     // 3. Prepara la eliminación de la venta.

@@ -1091,11 +1091,11 @@ class _ProductDialogState extends State<ProductDialog> {
     _barCodeController.text = data?['bar_code']?.toString() ?? '';
     
     // Safe parsing for numeric fields
-    var stockVal = data?['stock'];
-    _stockController.text = (stockVal is num ? stockVal.toInt() : (int.tryParse(stockVal?.toString() ?? '0') ?? 0)).toString();
+    final stockVal = data?['stock'];
+    _stockController.text = ((stockVal is num) ? stockVal.toDouble() : (double.tryParse(stockVal?.toString() ?? '0.0') ?? 0.0)).toString();
 
-    var safetyStockVal = data?['safety_stock'];
-    _safetyStockController.text = (safetyStockVal is num ? safetyStockVal.toInt() : (int.tryParse(safetyStockVal?.toString() ?? '5') ?? 5)).toString();
+    final safetyStockVal = data?['safety_stock'];
+    _safetyStockController.text = ((safetyStockVal is num) ? safetyStockVal.toDouble() : (double.tryParse(safetyStockVal?.toString() ?? '5.0') ?? 5.0)).toString();
 
     var unitsBoxVal = data?['units_box'];
     if (unitsBoxVal is num) {
@@ -1324,8 +1324,8 @@ class _ProductDialogState extends State<ProductDialog> {
 
       final purchPriceInput = double.tryParse(_purchPriceController.text) ?? 0.0;
       final priceInput = double.tryParse(_priceController.text) ?? 0.0;
-      final stock = int.tryParse(_stockController.text) ?? 0;
-      final safetyStock = int.tryParse(_safetyStockController.text) ?? 5;
+      final stock = double.tryParse(_stockController.text) ?? 0.0;
+      final safetyStock = double.tryParse(_safetyStockController.text) ?? 5.0;
       final unitsBox = int.tryParse(_unitsBoxController.text);
 
       final double salePriceToSave;
@@ -1867,7 +1867,7 @@ class _ProductDialogState extends State<ProductDialog> {
                       Expanded(
                         child: TextFormField(
                           controller: _stockController,
-                          decoration: InputDecoration(labelText: l10n.get('currentStock')),
+                          decoration: InputDecoration(labelText: l10n.get('currentStock')), // ej. 10 o 10.5
                           keyboardType: TextInputType.number,
                           validator: (value) => value!.isEmpty ? l10n.get('required') : null,
                         ),
@@ -1877,7 +1877,7 @@ class _ProductDialogState extends State<ProductDialog> {
                         child: TextFormField(
                           controller: _safetyStockController,
                           decoration: InputDecoration(labelText: l10n.get('safetyStock')),
-                          keyboardType: TextInputType.number,
+                          keyboardType: const TextInputType.numberWithOptions(decimal: true),
                         ),
                       ),
                     ],

@@ -264,7 +264,7 @@ class AppLocalizations {
       'currentStock': 'Stock Actual',
       'safetyStock': 'Stock de Seguridad',
       'offersActive': 'Ofertas Activas',
-      'createOffer': 'Crear Oferta',
+      'createOffer': 'Nueva Oferta',
       'password': 'Contraseña',
       'signIn': 'Iniciar Sesión',
       'signUp': 'Registrarse',
@@ -307,6 +307,8 @@ class AppLocalizations {
       'saleDeletedSuccess': 'Venta eliminada con éxito',
       'noSalesRegistered': 'No hay ventas registradas.',
       'confirmDeleteSale': '¿Estás seguro de que quieres eliminar esta venta? Esta acción no se puede deshacer.',
+      'gallery': 'Galería',
+      'camera': 'Cámara',
     },
     'en': {
       'initialSetupTitle': 'Initial Business Setup',
@@ -558,7 +560,7 @@ class AppLocalizations {
       'currentStock': 'Current Stock',
       'safetyStock': 'Safety Stock',
       'offersActive': 'Active Offers',
-      'createOffer': 'Create Offer',
+      'createOffer': 'New Offer',
       'password': 'Password',
       'signIn': 'Sign In',
       'signUp': 'Sign Up',
@@ -601,6 +603,8 @@ class AppLocalizations {
       'saleDeletedSuccess': 'Sale deleted successfully',
       'noSalesRegistered': 'No sales registered.',
       'confirmDeleteSale': 'Are you sure you want to delete this sale? This action cannot be undone.',
+      'gallery': 'Gallery',
+      'camera': 'Camera',
     },
   };
 

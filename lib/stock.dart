@@ -1,27 +1,29 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:seller/main.dart';
 import 'firestore_service.dart';
 import 'app_localizations.dart';
 import 'widgets/barcode_scanner.dart';
+import 'company_settings_provider.dart';
 
-class StockPage extends StatefulWidget {
+class StockPage extends ConsumerStatefulWidget {
   final User user;
   final String businessId;
   final String? role;
   final String? sellerId;
 
-  const StockPage({super.key, 
-    required this.user, 
-    required this.businessId, 
-    this.sellerId, 
+  const StockPage({super.key,
+    required this.user,
+    required this.businessId,
+    this.sellerId,
     required this.role});
   @override
-  State<StockPage> createState() => _StockPageState(); 
+  ConsumerState<StockPage> createState() => _StockPageState();
 }
 
-class _StockPageState extends State<StockPage> {
+class _StockPageState extends ConsumerState<StockPage> {
   final FirestoreService _firestoreService = FirestoreService();
   final TextEditingController _searchController = TextEditingController();
   String _searchTerm = '';
@@ -60,8 +62,12 @@ class _StockPageState extends State<StockPage> {
 
   void _showUpdateStockDialog(DocumentSnapshot product) {
     final l10n = AppLocalizations.of(context);
-    final currentStock = (product.data() as Map<String, dynamic>)['stock'] as int? ?? 0;
+    // Leemos el stock como 'num' para aceptar tanto enteros como decimales.
+    final currentStock = (product.data() as Map<String, dynamic>)['stock'] as num? ?? 0;
     final controller = TextEditingController();
+    // Obtenemos los decimales de la configuración para mostrar el stock actual correctamente.
+    final settingsData = ref.read(companySettingsProvider(widget.businessId)).asData?.value.data() as Map<String, dynamic>?;
+    final decimalPlaces = (settingsData?['decimal_places'] as num?)?.toInt() ?? 2;
 
     showDialog(
       context: context,
@@ -72,11 +78,11 @@ class _StockPageState extends State<StockPage> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(l10n.get('currentStockIs').replaceFirst('{stock}', currentStock.toString()), style: const TextStyle(fontWeight: FontWeight.bold)),
+              Text(l10n.get('currentStockIs').replaceFirst('{stock}', currentStock.toStringAsFixed(decimalPlaces)), style: const TextStyle(fontWeight: FontWeight.bold)),
               const SizedBox(height: 16),
               TextField(
                 controller: controller,
-                keyboardType: const TextInputType.numberWithOptions(signed: true),
+                keyboardType: const TextInputType.numberWithOptions(signed: true, decimal: true),
                 decoration: InputDecoration(
                   labelText: l10n.get('amountToAdd'),
                   helperText: l10n.get('negativeToSubtract'),
@@ -93,7 +99,8 @@ class _StockPageState extends State<StockPage> {
             ),
             ElevatedButton(
               onPressed: () async {
-                final amountToAdd = int.tryParse(controller.text);
+                // Parseamos la cantidad como 'double' para permitir decimales.
+                final amountToAdd = double.tryParse(controller.text);
                 if (amountToAdd != null) {
                   await _firestoreService.incrementProductStock(product.id, amountToAdd);
                   if (context.mounted) {
@@ -162,6 +169,11 @@ class _StockPageState extends State<StockPage> {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
+    final settingsAsync = ref.watch(companySettingsProvider(widget.businessId));
+    final settingsData = settingsAsync.asData?.value.data() as Map<String, dynamic>?;
+    // Usamos 2 como valor por defecto si no está configurado
+    final decimalPlaces = (settingsData?['decimal_places'] as num?)?.toInt() ?? 2;
+
     return Scaffold(
       appBar: AppBar(
         title: Text(l10n.get('stockManagement')),
@@ -261,7 +273,7 @@ class _StockPageState extends State<StockPage> {
                   itemBuilder: (context, index) {
                     final product = products[index];
                     final data = product.data() as Map<String, dynamic>;
-                    final stock = data['stock'] as int? ?? 0;
+                    final stock = (data['stock'] as num?)?.toDouble() ?? 0.0;
                     final unitsBox = data['units_box'] as int? ?? 0;
                     final safetyStock = (data['safety_stock'] as num?)?.toInt() ?? 5;
                     final isLowStock = stock <= safetyStock;
@@ -272,11 +284,11 @@ class _StockPageState extends State<StockPage> {
                           Expanded(
                             child: Text(
                               data['name'],
-                              style: const TextStyle(fontWeight: FontWeight.bold),
+                              style: const TextStyle(fontSize: 15),
                             ),
                           ),
                           Text(
-                            stock.toString(),
+                            stock.toStringAsFixed(decimalPlaces),
                             style: TextStyle(
                               fontSize: 18,
                               fontWeight: FontWeight.bold,

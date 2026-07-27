@@ -3,11 +3,12 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'dart:developer';
 import 'package:intl/intl.dart';
-import 'package:seller/widgets/barcode_scanner.dart';
 import 'dart:async';
 import 'firestore_service.dart';
+import 'package:flutter/services.dart';
 import 'app_localizations.dart';
 import 'products.dart'; // Importamos la página de productos para usar el diálogo.
+import 'package:mobile_scanner/mobile_scanner.dart';
 import 'sales.dart';
 
 // Modelo para representar los datos de un producto en una venta.
@@ -67,6 +68,9 @@ class _AddSalePageState extends State<AddSalePage> {
   String? _companyLogoUrl;
   int _decimalPlaces = 2; // Valor por defecto para los decimales
   String? _sellerNameFromDb;
+  Timer? _barcodeCooldown;
+  String? _lastBarcode;
+  bool _isScanning = false; // Nuevo estado para controlar el escáner
   String? _originalSellerName; // Nombre del vendedor original (para mostrar al editar/ver)
 
   bool get _isEditing => widget.saleDocument != null;
@@ -108,6 +112,7 @@ class _AddSalePageState extends State<AddSalePage> {
     _productController.dispose();
     _productFocusNode.dispose();
     _noteController.dispose();
+    _barcodeCooldown?.cancel();
     super.dispose();
   }
 
@@ -686,30 +691,40 @@ class _AddSalePageState extends State<AddSalePage> {
     }
   }
 
-  Future<void> _scanBarcodeAndAddProduct() async {
-    // 1. Abrir el escáner
-    final barcode = await Navigator.push<String>(
-      context,
-      MaterialPageRoute(builder: (context) => const BarcodeScannerSimple()),
-    );
+  // Nuevo método para manejar el código de barras detectado por el escáner en vivo
+  Future<void> _onBarcodeDetected(String barcodeValue) async {
+    if (!mounted || _barcodeCooldown?.isActive == true) return;
 
-    if (barcode == null || !mounted) return;
+    // Evitar procesar el mismo código de barras repetidamente
+    if (_lastBarcode == barcodeValue) return;
+    _lastBarcode = barcodeValue;
 
-    // 2. Buscar el producto por código de barras
-    final productDoc = await _firestoreService.getProductByBarcode(widget.businessId, barcode);
+    // Iniciar un cooldown para evitar detecciones múltiples inmediatas
+    _barcodeCooldown = Timer(const Duration(milliseconds: 1000), () {
+      _lastBarcode = null; // Limpiar después del cooldown
+    });
 
+    // Reproducir un sonido de "clic" para dar feedback auditivo
+    SystemSound.play(SystemSoundType.click);
+
+    final existingItemIndex = _saleItems.indexWhere((item) => item.product.id.endsWith(barcodeValue));
+
+    final productDoc = await _firestoreService.getProductByBarcode(widget.businessId, barcodeValue);
+    
     if (productDoc == null) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Producto no encontrado.')));
+      // Feedback visual/sonoro de que no se encontró
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Producto no encontrado'), duration: Duration(seconds: 1), backgroundColor: Colors.red));
       return;
     }
 
-    // 3. Comprobar si el producto ya está en la lista
-    final existingItemIndex = _saleItems.indexWhere((item) => item.product.id == productDoc.id);
+    // Feedback de éxito
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('${(productDoc.data() as Map<String, dynamic>)['name']} añadido'), duration: const Duration(seconds: 1), backgroundColor: Colors.green));
+
     if (existingItemIndex != -1) {
-      // Si ya existe, solo incrementa la cantidad
       setState(() => _saleItems[existingItemIndex].quantity++);
+      _calculateTotal();
     } else {
-      // Si es nuevo, usa la lógica existente que maneja las ofertas
+      // Si es un producto nuevo en el carrito, buscamos ofertas.
       _handleProductSelection(productDoc, null);
     }
   }
@@ -975,6 +990,27 @@ class _AddSalePageState extends State<AddSalePage> {
                       Text('${l10n.get('products')}:',
                           style: const TextStyle(
                               fontSize: 18, fontWeight: FontWeight.bold)),
+                      // --- INICIO: Escáner de código de barras integrado ---
+                      if (_isScanning)
+                        Padding(
+                          padding: const EdgeInsets.only(top: 8.0),
+                          child: SizedBox(
+                            height: 200,
+                            child: ClipRRect(
+                              borderRadius: BorderRadius.circular(12),
+                              child: MobileScanner(
+                                controller: MobileScannerController(
+                                  detectionSpeed: DetectionSpeed.normal,
+                                  facing: CameraFacing.back,
+                                ),
+                                onDetect: (capture) {
+                                  final barcode = capture.barcodes.first.rawValue;
+                                  if (barcode != null) _onBarcodeDetected(barcode);
+                                },
+                              ),
+                            ),
+                          ),
+                        ),
                       const SizedBox(height: 8),
                       Column(
                         children: [
@@ -1059,7 +1095,7 @@ class _AddSalePageState extends State<AddSalePage> {
                                             children: [
                                               Text(item.product.name.toUpperCase(), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
                                               if (isLowStock)
-                                                Text('Stock máx: ${item.product.stock}', style: const TextStyle(color: Colors.deepOrange, fontSize: 11)),
+                                                Text('Stock máx: ${item.product.stock.toStringAsFixed(_decimalPlaces)}', style: const TextStyle(color: Colors.deepOrange, fontSize: 11)),
                                               Text('\$${(item.salePrice * (1 + _vatRate)).toStringAsFixed(0)}', style: const TextStyle(color: Colors.grey, fontSize: 12)),
                                             ],
                                           ),
@@ -1247,8 +1283,10 @@ class _AddSalePageState extends State<AddSalePage> {
                                       ),
                                     ),
                                     IconButton(
-                                      icon: const Icon(Icons.qr_code_scanner),
-                                      onPressed: _scanBarcodeAndAddProduct,
+                                      icon: Icon(Icons.qr_code_scanner, color: _isScanning ? Theme.of(context).colorScheme.primary : null),
+                                      onPressed: () {
+                                        setState(() => _isScanning = !_isScanning);
+                                      },
                                       tooltip: l10n.get('scanBarcode'),
                                     ),
                                     IconButton(
@@ -1441,9 +1479,13 @@ class _AddSalePageState extends State<AddSalePage> {
           ],
         ),
       ),
-      floatingActionButton: _isEditing
-          ? FloatingActionButton(onPressed: _showAddPaymentToSaleDialog, tooltip: 'Añadir Pago', child: const Icon(Icons.payment))
-          : null,
+  floatingActionButton: _isEditing ? FloatingActionButton(
+          onPressed: _showAddPaymentToSaleDialog,
+          tooltip: l10n.get('newPayment'),
+          backgroundColor: Colors.green,
+          child: const Icon(Icons.payments),
+        )
+      : null,
     );
   }
 

@@ -222,6 +222,7 @@ class _OffersPageState extends State<OffersPage> {
                     }
 
                     return ListView.builder(
+                      padding: const EdgeInsets.only(bottom: 80),
                       itemCount: filteredProducts.length,
                       itemBuilder: (context, index) {
                         final productDoc = filteredProducts[index];
@@ -314,10 +315,11 @@ class _OffersPageState extends State<OffersPage> {
           ),
         ],
       ),
-      floatingActionButton: FloatingActionButton(
+      floatingActionButton: FloatingActionButton.extended(
         onPressed: () => _showOfferDialog(null, null),
         tooltip: l10n.get('createOffer'),
-        child: const Icon(Icons.add),
+        icon: const Icon(Icons.add),
+        label: Text(l10n.get('createOffer')),
       ),
       bottomNavigationBar: SellerBottomNavigationBar(
         user: widget.user,

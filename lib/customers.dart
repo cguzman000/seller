@@ -385,10 +385,11 @@ class _CustomersPageState extends State<CustomersPage> {
           ),
         ],
       ),
-      floatingActionButton: FloatingActionButton(
+      floatingActionButton: FloatingActionButton.extended(
         onPressed: () => _showCustomerDialog(),
         tooltip: l10n.get('addCustomer'),
-        child: const Icon(Icons.add),
+        icon: const Icon(Icons.add),
+        label: Text(l10n.get('addCustomer')),
       ),
       bottomNavigationBar: SellerBottomNavigationBar(
         user: widget.user,

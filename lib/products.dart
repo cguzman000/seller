@@ -461,10 +461,11 @@ class _ProductsPageState extends State<ProductsPage> { // Este se mantiene como 
           ),
         ],
       ),
-      floatingActionButton: FloatingActionButton(
+      floatingActionButton: FloatingActionButton.extended(
         onPressed: () => _showProductDialog(),
         tooltip: l10n.get('addProduct'),
-        child: const Icon(Icons.add),
+        icon: const Icon(Icons.add),
+        label: Text(l10n.get('addProduct')),
       ),
       bottomNavigationBar: SellerBottomNavigationBar(
         user: widget.user,
@@ -1047,6 +1048,7 @@ class _ProductDialogState extends State<ProductDialog> {
   bool _purchasePriceIncludesVat = false;
   bool _isActive = true;
   bool _isLoading = true;
+  bool _isScanning = false;
   bool _isSaving = false; // Estado para controlar el proceso de guardado
   Stream<QuerySnapshot>? _offersStream;
   late Stream<QuerySnapshot> _categoriesStream;
@@ -1183,16 +1185,21 @@ class _ProductDialogState extends State<ProductDialog> {
   }
 
   Future<void> _scanBarcode() async {
-    final result = await Navigator.push<String>(
-      context,
-      MaterialPageRoute(builder: (context) => const BarcodeScannerSimple()),
-    );
+    // Si el escáner en línea está activo, lo cerramos.
+    if (_isScanning) {
+      setState(() => _isScanning = false);
+      return;
+    }
+    setState(() => _isScanning = true);
+  }
 
-    if (result != null && mounted) {
+  void _onBarcodeDetected(String result) {
+    if (!mounted) return;
+    HapticFeedback.lightImpact();
       setState(() {
         _barCodeController.text = result;
+        _isScanning = false; // Ocultar el escáner después de una detección exitosa
       });
-    }
   }
 
   void _updateSuggestion() {
@@ -1266,11 +1273,37 @@ class _ProductDialogState extends State<ProductDialog> {
   }
 
   Future<void> _pickImage() async {
-    final pickedFile = await ImagePicker().pickImage(source: ImageSource.gallery);
+    final l10n = AppLocalizations.of(context);
+    final source = await showModalBottomSheet<ImageSource>(
+      context: context,
+      builder: (context) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: <Widget>[
+            ListTile(
+              leading: const Icon(Icons.photo_library),
+              title: Text(l10n.get('gallery')),
+              onTap: () => Navigator.of(context).pop(ImageSource.gallery),
+            ),
+            ListTile(
+              leading: const Icon(Icons.photo_camera),
+              title: Text(l10n.get('camera')),
+              onTap: () => Navigator.of(context).pop(ImageSource.camera),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    if (source == null) return;
+
+    final pickedFile = await ImagePicker().pickImage(source: source);
     if (pickedFile != null) {
-      setState(() {
-        _imageFile = File(pickedFile.path);
-      });
+      if (mounted) {
+        setState(() {
+          _imageFile = File(pickedFile.path);
+        });
+      }
     }
   }
 
@@ -1690,18 +1723,44 @@ class _ProductDialogState extends State<ProductDialog> {
                     maxLines: 3,
                     minLines: 1,
                   ),
-                  TextFormField(
-                    controller: _barCodeController,
-                    decoration: InputDecoration(
-                      labelText: l10n.get('barCode'),
-                      prefixIcon: const Icon(Icons.qr_code),
-                      suffixIcon: IconButton(
-                        icon: const Icon(Icons.camera_alt),
-                        onPressed: _scanBarcode,
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      Expanded(
+                        child: TextFormField( // Este es el campo de texto del código de barras
+                          controller: _barCodeController,
+                          decoration: InputDecoration(
+                            labelText: l10n.get('barCode'),
+                            prefixIcon: const Icon(Icons.qr_code),
+                          ),
+                          keyboardType: TextInputType.text,
+                        ),
+                      ),
+                      IconButton(
+                        icon: Icon(
+                          Icons.qr_code_scanner,
+                          color: _isScanning
+                              ? Theme.of(context).colorScheme.primary
+                              : null,
+                        ),
+                        onPressed:
+                            _scanBarcode, // Este botón ahora alterna la visibilidad del escáner
+                        tooltip: l10n.get('scanBarcode'),
+                      ),
+                    ],
+                  ),
+                  if (_isScanning)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 8.0, bottom: 8.0),
+                      child: SizedBox(
+                        height: 200,
+                        child: ClipRRect(
+                            borderRadius: BorderRadius.circular(12),
+                            child: BarcodeScannerSimple(
+                                onBarcodeDetected:
+                                    _onBarcodeDetected)), // Aquí se usa la función
                       ),
                     ),
-                    keyboardType: TextInputType.text,
-                  ),
                   TextFormField(
                     controller: _unitsBoxController,
                     decoration: InputDecoration(labelText: l10n.get('unitsBox')),
@@ -1735,10 +1794,11 @@ class _ProductDialogState extends State<ProductDialog> {
                       ),
                       //BOTON AÑADIR CATEGORÍA SOLO SI ES EL DUEÑO
                       if (widget.user.uid == widget.businessId)
-                        IconButton(
-                          icon: const Icon(Icons.add),
-                          onPressed: _showAddCategoryDialog,
-                          tooltip: l10n.get('addCategory'),
+                        Padding(
+                          padding: const EdgeInsets.only(left: 8.0),
+                          child: ElevatedButton.icon(
+                              onPressed: _showAddCategoryDialog,
+                              icon: const Icon(Icons.add), label: Text(l10n.get('addCategory'))),
                         ),
                     ],
                   ),
@@ -1772,10 +1832,11 @@ class _ProductDialogState extends State<ProductDialog> {
                       ),
                       //BOTON AÑADIR PROVEEDOR SOLO SI ES EL DUEÑO
                       if (widget.user.uid == widget.businessId)
-                        IconButton(
-                          icon: const Icon(Icons.add),
-                          onPressed: _showAddSupplierDialog,
-                          tooltip: l10n.get('addSupplier'), // Ensure this key exists or use fallback
+                        Padding(
+                          padding: const EdgeInsets.only(left: 8.0),
+                          child: ElevatedButton.icon(
+                              onPressed: _showAddSupplierDialog,
+                              icon: const Icon(Icons.add), label: Text(l10n.get('addSupplier'))),
                         ),
                     ],
                   ),
@@ -1923,9 +1984,9 @@ class _ProductDialogState extends State<ProductDialog> {
                     ),
                     SizedBox(
                       width: double.infinity,
-                      child: OutlinedButton.icon(
+                      child: ElevatedButton.icon(
                         icon: const Icon(Icons.local_offer),
-                        label: Text(l10n.get('createOffer')),
+                        label: Text(l10n.get('createOffer').toUpperCase()),
                         onPressed: _showAddOfferDialog,
                       ),
                     ),

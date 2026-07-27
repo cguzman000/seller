@@ -198,10 +198,11 @@ class _CategoriesPageState extends State<CategoriesPage> {
         },
       ),
       floatingActionButton: widget.user.uid == widget.businessId
-          ? FloatingActionButton(
+          ? FloatingActionButton.extended(
               onPressed: () => _showCategoryDialog(),
               tooltip: l10n.get('addCategory'),
-              child: const Icon(Icons.add),
+              icon: const Icon(Icons.add),
+              label: Text(l10n.get('addCategory')),
             )
           : null,
     );

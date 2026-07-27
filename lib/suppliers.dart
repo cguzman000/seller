@@ -135,6 +135,7 @@ class _SuppliersPageState extends State<SuppliersPage> {
                 if (docs.isEmpty) return Center(child: Text(l10n.get('noSuppliersFound')));
 
                 return ListView.separated(
+                  padding: const EdgeInsets.only(bottom: 80),
                   itemCount: docs.length,
                   separatorBuilder: (context, index) => Divider(
                     height: 1,
@@ -183,10 +184,11 @@ class _SuppliersPageState extends State<SuppliersPage> {
           ),
         ],
       ),
-      floatingActionButton: FloatingActionButton(
+      floatingActionButton: FloatingActionButton.extended(
         onPressed: () => _showSupplierDialog(),
         tooltip: l10n.get('addSupplier'),
-        child: const Icon(Icons.add),
+        icon: const Icon(Icons.add),
+        label: Text(l10n.get('addSupplier')),
       ),
       bottomNavigationBar: SellerBottomNavigationBar(
         user: widget.user,

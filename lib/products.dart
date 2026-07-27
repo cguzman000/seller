@@ -390,7 +390,7 @@ class _ProductsPageState extends State<ProductsPage> { // Este se mantiene como 
                   onSelected: (value) {
                     if (value == 'category') {
                       _showFilterSelectionDialog(
-                        title: l10n.get('selectCategory'),
+                        title: l10n.get('selectCategory2'),
                         stream: _firestoreService.getCategories(widget.businessId),
                         onSelected: (id, name) => setState(() {
                           _selectedCategoryIdFilter = id;
@@ -401,7 +401,7 @@ class _ProductsPageState extends State<ProductsPage> { // Este se mantiene como 
                       );
                     } else if (value == 'supplier') {
                       _showFilterSelectionDialog(
-                        title: l10n.get('selectSupplier'),
+                        title: l10n.get('selectSupplier2'),
                         stream: _firestoreService.getSuppliers(widget.businessId),
                         onSelected: (id, name) => setState(() {
                           _selectedSupplierIdFilter = id;
@@ -1796,9 +1796,10 @@ class _ProductDialogState extends State<ProductDialog> {
                       if (widget.user.uid == widget.businessId)
                         Padding(
                           padding: const EdgeInsets.only(left: 8.0),
-                          child: ElevatedButton.icon(
-                              onPressed: _showAddCategoryDialog,
-                              icon: const Icon(Icons.add), label: Text(l10n.get('addCategory'))),
+                          child: IconButton(
+                            icon: const Icon(Icons.add_circle),
+                            onPressed: _showAddCategoryDialog,
+                          ),
                         ),
                     ],
                   ),
@@ -1834,9 +1835,10 @@ class _ProductDialogState extends State<ProductDialog> {
                       if (widget.user.uid == widget.businessId)
                         Padding(
                           padding: const EdgeInsets.only(left: 8.0),
-                          child: ElevatedButton.icon(
-                              onPressed: _showAddSupplierDialog,
-                              icon: const Icon(Icons.add), label: Text(l10n.get('addSupplier'))),
+                          child: IconButton(
+                            icon: const Icon(Icons.add_circle),
+                            onPressed: _showAddSupplierDialog,
+                          ),
                         ),
                     ],
                   ),

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter/services.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:seller/main.dart';
@@ -28,35 +29,33 @@ class _StockPageState extends ConsumerState<StockPage> {
   final TextEditingController _searchController = TextEditingController();
   String _searchTerm = '';
   String? _selectedSupplierId;
+  bool _isScanning = false;
 
   @override
   void dispose() {
     _searchController.dispose();
     super.dispose();
   }
+  
+  void _toggleScanner() {
+    setState(() {
+      _isScanning = !_isScanning;
+    });
+  }
 
-  Future<void> _scanBarcode() async {
-    final result = await Navigator.push<String>(
-      context,
-      MaterialPageRoute(builder: (context) => const BarcodeScannerSimple()),
-    );
+  Future<void> _onBarcodeDetected(String barcode) async {
+    HapticFeedback.lightImpact();
+    setState(() {
+      _searchController.text = barcode;
+      _searchTerm = barcode.toLowerCase();
+      _isScanning = false;
+    });
 
-    if (result != null && mounted) {
-      setState(() {
-        _searchController.text = result;
-        _searchTerm = result.toLowerCase();
-      });
-
-      final snapshot = await FirebaseFirestore.instance
-          .collection('products')
-          .where('userId', isEqualTo: widget.businessId)
-          .where('bar_code', isEqualTo: result.trim())
-          .limit(1)
-          .get();
-
-      if (snapshot.docs.isNotEmpty && mounted) {
-        _showUpdateStockDialog(snapshot.docs.first);
-      }
+    final productDoc = await _firestoreService.getProductByBarcode(widget.businessId, barcode);
+    if (productDoc != null && mounted) {
+      _showUpdateStockDialog(productDoc);
+    } else if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Producto no encontrado')));
     }
   }
 
@@ -191,8 +190,8 @@ class _StockPageState extends ConsumerState<StockPage> {
                       labelText: l10n.get('searchProduct'),
                       prefixIcon: const Icon(Icons.search),
                       suffixIcon: IconButton(
-                        icon: const Icon(Icons.qr_code_scanner),
-                        onPressed: _scanBarcode,
+                        icon: Icon(Icons.qr_code_scanner, color: _isScanning ? Theme.of(context).colorScheme.primary : null),
+                        onPressed: _toggleScanner,
                         tooltip: l10n.get('scanBarcode'),
                       ),
                       border: OutlineInputBorder(
@@ -239,6 +238,17 @@ class _StockPageState extends ConsumerState<StockPage> {
               ],
             ),
           ),
+          if (_isScanning)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+              child: SizedBox(
+                height: 200,
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(12),
+                  child: BarcodeScannerSimple(onBarcodeDetected: _onBarcodeDetected),
+                ),
+              ),
+            ),
           Expanded(
             child: StreamBuilder<QuerySnapshot>(
               stream: _firestoreService.getProducts(widget.businessId, supplierId: _selectedSupplierId),

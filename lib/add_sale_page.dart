@@ -727,6 +727,11 @@ class _AddSalePageState extends State<AddSalePage> {
       // Si es un producto nuevo en el carrito, buscamos ofertas.
       _handleProductSelection(productDoc, null);
     }
+
+    // Después de procesar, nos aseguramos de que el foco vuelva al campo de producto.
+    if (mounted) {
+      FocusScope.of(context).requestFocus(_productFocusNode);
+    }
   }
   @override
   Widget build(BuildContext context) {

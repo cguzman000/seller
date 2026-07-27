@@ -72,6 +72,7 @@ class _AddSalePageState extends State<AddSalePage> {
   String? _lastBarcode;
   bool _isScanning = false; // Nuevo estado para controlar el escáner
   String? _originalSellerName; // Nombre del vendedor original (para mostrar al editar/ver)
+  bool _isDelivered = false; // Nuevo estado para la entrega
 
   bool get _isEditing => widget.saleDocument != null;
 
@@ -190,6 +191,7 @@ class _AddSalePageState extends State<AddSalePage> {
     _saleNumber = data['sale_number'] as int?;
     if (data['saleDate'] != null) {
       _saleDate = (data['saleDate'] as Timestamp).toDate();
+      _isDelivered = data['delivered'] as bool? ?? false;
     }
 
 
@@ -351,6 +353,7 @@ class _AddSalePageState extends State<AddSalePage> {
       sellerName: _effectiveSellerName,
       note: _noteController.text,
       saleDate: _saleDate,
+      delivered: _isDelivered, // Pasamos el estado de entrega
     );
 
     // Si se ingresó un pago, registrarlo
@@ -437,7 +440,7 @@ class _AddSalePageState extends State<AddSalePage> {
   }
 
   void _showEditSaleItemDialog(int index) {
-    showDialog(
+    showDialog<void>(
       context: context,
       builder: (context) {
         return _EditSaleItemDialog(
@@ -445,18 +448,22 @@ class _AddSalePageState extends State<AddSalePage> {
           vatRate: _vatRate,
           businessId: widget.businessId,
           firestoreService: _firestoreService,
-          onDelete: () {
-            setState(() => _saleItems.removeAt(index));
-            _calculateTotal();
-            Navigator.of(context).pop();
+          onDelete: () { // onDelete
+            if (mounted) {
+              setState(() => _saleItems.removeAt(index));
+              _calculateTotal();
+              Navigator.of(context).pop();
+            }
           },
-          onUpdate: (quantity, price) {
-            setState(() {
-              _saleItems[index].quantity = quantity;
-              _saleItems[index].salePrice = price;
-            });
-            _calculateTotal();
-            Navigator.of(context).pop();
+          onUpdate: (quantity, price) { // onUpdate
+            if (mounted) {
+              setState(() {
+                _saleItems[index].quantity = quantity;
+                _saleItems[index].salePrice = price;
+              });
+              _calculateTotal();
+              Navigator.of(context).pop();
+            }
           },
         );
       });
@@ -1451,6 +1458,27 @@ class _AddSalePageState extends State<AddSalePage> {
                         ),
                       ],
                       const SizedBox(height: 16),
+                      // --- Switch de Entregado (ahora visible siempre) ---
+                      SwitchListTile(
+                        title: Text(
+                          l10n.get('markAsDelivered'),
+                          style: const TextStyle(fontWeight: FontWeight.bold),
+                        ),
+                        subtitle: Text(_isDelivered ? l10n.get('delivered') : l10n.get('pendingDelivery')),
+                        value: _isDelivered,
+                        onChanged: (bool value) async {
+                          setState(() => _isDelivered = value); // Actualiza el estado local
+                          // Si estamos editando, también actualizamos en la BD inmediatamente
+                          if (_isEditing) {
+                            try {
+                              await _firestoreService.updateSaleDeliveryStatus(widget.saleDocument!.id, value);
+                            } catch (_) {
+                              // El error se puede ignorar, se guardará al final de todas formas
+                            }
+                          }
+                        },
+                      ),
+                      const SizedBox(height: 20),
                       TextFormField(
                         controller: _noteController,
                         decoration: const InputDecoration(

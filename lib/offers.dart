@@ -445,7 +445,8 @@ class _OfferDialogState extends State<OfferDialog> {
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
-      title: Text(widget.offer == null ? 'Añadir Oferta' : 'Editar Oferta'),
+      title: Text(widget.offer == null ? AppLocalizations.of(context).get('createOffer') 
+                                       : AppLocalizations.of(context).get('editOffer')),
       content: SizedBox(
         width: MediaQuery.of(context).size.width * 0.8,
         child: SingleChildScrollView(

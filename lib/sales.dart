@@ -512,6 +512,7 @@ class _SaleListItem extends StatelessWidget {
     final saleData = sale.data() as Map<String, dynamic>;
     final saleDate = (saleData['saleDate'] as Timestamp?)?.toDate();
     final totalAmount = (saleData['totalAmount'] as num?)?.toDouble() ?? 0.0;
+    final isDelivered = saleData['delivered'] as bool? ?? false;
 
     return StreamBuilder<QuerySnapshot>(
       stream: firestoreService.getPaymentsForSale(sale.id),
@@ -575,6 +576,18 @@ class _SaleListItem extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text((saleData['customerName'] as String? ?? l10n.get('noCustomer')).toUpperCase(), style: const TextStyle(fontSize: 12)),
+                if (isDelivered)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 4.0),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: Colors.blueGrey.shade100,
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Text(l10n.get('delivered').toUpperCase(), style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: Colors.blueGrey.shade700)),
+                    ),
+                  ),
                 if (saleData['note'] != null && saleData['note'].toString().isNotEmpty)
                   Padding(
                     padding: const EdgeInsets.only(top: 4.0),

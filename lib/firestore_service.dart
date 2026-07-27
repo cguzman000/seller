@@ -372,7 +372,7 @@ class FirestoreService {
   /// [customerId] es el ID del documento del cliente.
   /// [items] es una lista de mapas, donde cada mapa representa un producto vendido.
   /// Ejemplo de un item: {'productId': 'xyz', 'quantity': 2, 'price': 99.99}
-  Future<DocumentReference> addSale(String userId, int saleNumber, String customerId, String customerName, double totalAmount, List<Map<String, dynamic>> items, {String? sellerId, String? sellerName, String? note, DateTime? saleDate}) async {
+  Future<DocumentReference> addSale(String userId, int saleNumber, String customerId, String customerName, double totalAmount, List<Map<String, dynamic>> items, {String? sellerId, String? sellerName, String? note, DateTime? saleDate, bool delivered = false}) async {
     final WriteBatch batch = _db.batch();
     final DocumentReference saleRef = _db.collection('sales').doc();
 
@@ -387,6 +387,7 @@ class FirestoreService {
       'sellerId': sellerId, // Quién realizó la venta
       'sellerName': sellerName?.trim().toUpperCase(),
       'note': note?.trim(),
+      'delivered': delivered,
     });
 
     // Reducir stock de los productos
@@ -400,6 +401,7 @@ class FirestoreService {
   }
 
   /// Actualiza una venta existente.
+  /// No se actualiza el estado 'delivered' aquí, para eso hay un método específico.
   Future<void> updateSale(String saleId, String customerId, String customerName, double totalAmount, List<Map<String, dynamic>> items, {String? note, DateTime? saleDate}) {
     final Map<String, dynamic> updates = {
       'customerId': customerId,
@@ -414,6 +416,13 @@ class FirestoreService {
     }
 
     return _db.collection('sales').doc(saleId).update(updates);
+  }
+
+  /// Actualiza solo el estado de entrega de una venta.
+  Future<void> updateSaleDeliveryStatus(String saleId, bool isDelivered) {
+    return _db.collection('sales').doc(saleId).update({
+      'delivered': isDelivered,
+    });
   }
 
   /// Obtiene el siguiente número de venta correlativo para un usuario.

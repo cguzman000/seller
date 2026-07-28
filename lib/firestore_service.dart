@@ -201,7 +201,6 @@ class FirestoreService {
   /// Obtiene un Stream de todas las ofertas de un negocio.
   Stream<QuerySnapshot> getAllOffers(String userId) {
     return _db.collection('offers').where('userId', isEqualTo: userId).orderBy('createdAt', descending: true).snapshots();
-    //return _db.collection('offers').where('userId', isEqualTo: userId).orderBy('name').snapshots();
   }
   
   /// Obtiene todas las ofertas de un negocio una sola vez (Future).

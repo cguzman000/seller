@@ -9,11 +9,12 @@ import 'dart:io';
 import 'package:image_picker/image_picker.dart';
 import 'package:seller/company_settings_provider.dart';
 import 'package:seller/main.dart';
+import 'package:seller/widgets/barcode_scanner.dart';
 import 'firestore_service.dart';
 import 'app_localizations.dart';
 import 'util/text_formatter.dart';
 import 'package:seller/pdf_generator.dart';
-import 'widgets/barcode_scanner.dart'; // Importación del widget centralizado
+import 'package:mobile_scanner/mobile_scanner.dart';
 
 class ProductsPage extends StatefulWidget {
   final User user;
@@ -35,6 +36,7 @@ class _ProductsPageState extends State<ProductsPage> { // Este se mantiene como 
   String? _selectedCategoryNameFilter;
   String? _selectedSupplierNameFilter;
   SortOption _sortOption = SortOption.none;
+  bool _isScanning = false;
 
   @override
   void initState() {
@@ -52,25 +54,24 @@ class _ProductsPageState extends State<ProductsPage> { // Este se mantiene como 
     super.dispose();
   }
 
-  Future<void> _scanBarcode() async {
-    final result = await Navigator.push<String>(
-      context,
-      MaterialPageRoute(builder: (context) => const BarcodeScannerSimple()),
-    );
+  void _toggleScanner() {
+    setState(() {
+      _isScanning = !_isScanning;
+    });
+  }
 
-    if (result != null && mounted) {
-      _searchController.text = result;
+  Future<void> _onBarcodeDetected(String barcodeValue) async {
+    if (!mounted) return;
+    HapticFeedback.lightImpact();
+    setState(() {
+      _searchController.text = barcodeValue;
+      _isScanning = false;
+    });
 
-      final snapshot = await FirebaseFirestore.instance
-          .collection('products')
-          .where('userId', isEqualTo: widget.businessId)
-          .where('bar_code', isEqualTo: result.trim())
-          .limit(1)
-          .get();
+    final snapshot = await _firestoreService.getProductByBarcode(widget.businessId, barcodeValue);
 
-      if (snapshot.docs.isNotEmpty && mounted) {
-        _showProductDialog(product: snapshot.docs.first);
-      }
+    if (snapshot != null && mounted) {
+      _showProductDialog(product: snapshot);
     }
   }
 
@@ -345,8 +346,11 @@ class _ProductsPageState extends State<ProductsPage> { // Este se mantiene como 
                               },
                             ),
                           IconButton(
-                            icon: const Icon(Icons.qr_code_scanner),
-                            onPressed: _scanBarcode,
+                            icon: Icon(
+                              Icons.qr_code_scanner,
+                              color: _isScanning ? Theme.of(context).colorScheme.primary : null,
+                            ),
+                            onPressed: _toggleScanner,
                             tooltip: l10n.get('scanBarcode'),
                           ),
                         ],
@@ -443,6 +447,22 @@ class _ProductsPageState extends State<ProductsPage> { // Este se mantiene como 
               child: Text(
                 '${l10n.get('supplier')}: $_selectedSupplierNameFilter',
                 style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.blueGrey),
+              ),
+            ),
+          if (_isScanning)
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 4.0),
+              child: SizedBox(
+                height: 200,
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(12),
+                  child: MobileScanner(
+                    onDetect: (capture) {
+                      final barcode = capture.barcodes.first.rawValue;
+                      if (barcode != null) _onBarcodeDetected(barcode);
+                    },
+                  ),
+                ),
               ),
             ),
           Expanded(
@@ -1049,6 +1069,7 @@ class _ProductDialogState extends State<ProductDialog> {
   bool _isActive = true;
   bool _isLoading = true;
   bool _isScanning = false;
+  bool _isScanningOffer = false; // Nuevo estado para el escáner en el diálogo de ofertas
   bool _isSaving = false; // Estado para controlar el proceso de guardado
   Stream<QuerySnapshot>? _offersStream;
   late Stream<QuerySnapshot> _categoriesStream;
@@ -1193,6 +1214,16 @@ class _ProductDialogState extends State<ProductDialog> {
     setState(() => _isScanning = true);
   }
 
+  // Nuevo método para manejar el código de barras detectado en el diálogo de ofertas
+  void _onBarcodeDetectedForOffer(String result, Function(void Function()) setStateDialog) {
+    if (!mounted) return;
+    HapticFeedback.lightImpact();
+    setStateDialog(() {
+      // Aquí actualizamos el controlador del campo de texto del código de barras en el diálogo de ofertas
+      // barcodeController.text = result; // Esto se pasaría como parámetro al diálogo
+      _isScanningOffer = false; // Ocultar el escáner después de una detección exitosa
+    });
+  }
   void _onBarcodeDetected(String result) {
     if (!mounted) return;
     HapticFeedback.lightImpact();
@@ -1526,6 +1557,7 @@ class _ProductDialogState extends State<ProductDialog> {
     final quantityController = TextEditingController();
     final priceController = TextEditingController();
     final nameController = TextEditingController();
+    final barcodeController = TextEditingController(); // Nuevo controlador para el código de barras
     bool offerPriceIncludesVat = false;
 
     await showDialog(
@@ -1533,6 +1565,7 @@ class _ProductDialogState extends State<ProductDialog> {
       builder: (context) => StatefulBuilder(
         builder: (context, setStateDialog) {
           return AlertDialog(
+            scrollable: true, // Permite que el contenido del diálogo sea scrollable
             title: const Text('Añadir Oferta'),
             content: SizedBox(
               width: double.maxFinite,
@@ -1545,6 +1578,38 @@ class _ProductDialogState extends State<ProductDialog> {
                       decoration: const InputDecoration(labelText: 'Nombre (ej. Mayorista)'),
                       textCapitalization: TextCapitalization.sentences,
                     ),
+                    const SizedBox(height: 16),
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.end,
+                      children: [
+                        Expanded(
+                          child: TextFormField(
+                            controller: barcodeController,
+                            decoration: const InputDecoration(
+                              labelText: 'Código de Barras (Opcional)',
+                              prefixIcon: Icon(Icons.qr_code),
+                            ),
+                            keyboardType: TextInputType.text,
+                          ),
+                        ),
+                        IconButton(
+                          icon: Icon(
+                            Icons.qr_code_scanner,
+                            color: _isScanningOffer // Usamos el nuevo estado para el escáner de ofertas
+                                ? Theme.of(context).colorScheme.primary
+                                : null,
+                          ),
+                          onPressed: () {
+                            setStateDialog(() {
+                              _isScanningOffer = !_isScanningOffer;
+                            });
+                          },
+                          tooltip: 'Escanear código de barras',
+                        ),
+                      ],
+                    ),
+                    if (_isScanningOffer) // Mostrar el escáner si está activo
+                      _buildOfferBarcodeScanner(barcodeController, setStateDialog),
                     TextField(
                       controller: quantityController,
                       decoration: const InputDecoration(labelText: 'Cantidad Mínima'),
@@ -1603,12 +1668,14 @@ class _ProductDialogState extends State<ProductDialog> {
                   final qty = double.tryParse(quantityController.text);
                   final priceInput = double.tryParse(priceController.text);
                   final name = nameController.text;
+// Obtenemos el código de barras
 
                   if (qty != null && priceInput != null && name.isNotEmpty) {
                     double finalPrice = priceInput;
                     if (offerPriceIncludesVat) {
                       finalPrice = priceInput / (1 + _vatRateFromSettings);
                     }
+                  
 
                     await widget.firestoreService.addOffer(
                       widget.businessId,
@@ -1632,6 +1699,25 @@ class _ProductDialogState extends State<ProductDialog> {
     );
   }
 
+  // Widget para el escáner de código de barras dentro del diálogo de ofertas
+  Widget _buildOfferBarcodeScanner(TextEditingController barcodeController, Function(void Function()) setStateDialog) {
+    return Padding(
+      padding: const EdgeInsets.only(top: 8.0, bottom: 8.0),
+      child: SizedBox(
+        height: 200,
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(12),
+          child: MobileScanner(
+            onDetect: (capture) {
+              final barcode = capture.barcodes.first.rawValue;
+              if (barcode != null) barcodeController.text = barcode; // Actualiza el campo de texto
+              _onBarcodeDetectedForOffer(barcode!, setStateDialog); // Llama a la función de manejo
+            },
+          ),
+        ),
+      ),
+    );
+  }
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);

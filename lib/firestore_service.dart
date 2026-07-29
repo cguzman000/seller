@@ -13,64 +13,57 @@ class FirestoreService {
   Future<List<Map<String, dynamic>>> getUserProfiles(User user) async {
     List<Map<String, dynamic>> profiles = [];
 
-    // 1. Buscar perfiles de Vendedor (por email)
-    QuerySnapshot<Map<String, dynamic>> query = await _db.collection('users').where('email', isEqualTo: user.email).get();
-    
-    // Fallback minúsculas
-    if (query.docs.isEmpty && user.email != null && user.email != user.email!.toLowerCase()) {
-      final queryLower = await _db.collection('users').where('email', isEqualTo: user.email!.toLowerCase()).get();
-      if (queryLower.docs.isNotEmpty) query = queryLower;
-    }
+    // 1. Realizar ambas consultas (admin y vendedor) en paralelo para más eficiencia.
+    final results = await Future.wait([
+      _db.collection('users').doc(user.uid).get(),
+      _db.collection('users').where('email', isEqualTo: user.email?.toLowerCase()).get(),
+    ]);
 
-    final sellerProfiles = await Future.wait(query.docs.map((doc) async {
-      if (doc.id == user.uid) return null;
+    final adminDoc = results[0] as DocumentSnapshot<Map<String, dynamic>>;
+    final sellerQuery = results[1] as QuerySnapshot<Map<String, dynamic>>;
 
-      final data = doc.data();
-      String businessLabel = 'Negocio ${data['businessId']}';
-      
-      try {
-        final settings = await _db.collection('company_settings').doc(data['businessId']).get();
-        if (settings.exists && settings.data()?['company_name'] != null) {
-          businessLabel = settings.data()!['company_name'];
-        }
-      } catch (e) {
-        debugPrint("Error loading profile settings: $e");
-      }
+    final allUserDocs = [if (adminDoc.exists) adminDoc, ...sellerQuery.docs];
+    final uniqueUserDocs = {for (var doc in allUserDocs) doc.id: doc}.values.toList();
 
-      return {
-        'businessId': data['businessId'],
-        'role': data['role'],
-        'label': 'Vendedor en $businessLabel',
-        'type': 'seller',
-        'sellerId': doc.id,
-      };
-    }));
+    // 2. Recopilar todos los businessId únicos de los perfiles encontrados.
+    final businessIds = uniqueUserDocs
+        .map((doc) => doc.data()?['businessId'] as String?)
+        .where((id) => id != null)
+        .toSet()
+        .toList();
 
-    profiles.addAll(sellerProfiles.whereType<Map<String, dynamic>>());
-
-    // 2. Buscar perfil de Admin (por UID) - Esto representa "Su propio negocio"
-    final adminDoc = await _db.collection('users').doc(user.uid).get();
-    if (adminDoc.exists) {
-      final data = adminDoc.data()!;
-
-      String businessLabel = 'Mi Negocio';
-      try {
-        final settings = await _db.collection('company_settings').doc(data['businessId']).get();
-        if (settings.exists && settings.data()!['company_name'] != null) {
-          final name = settings.data()!['company_name'] as String;
-          if (name.isNotEmpty) {
-            businessLabel = name;
+    // 3. Obtener la configuración de todos los negocios en una sola consulta.
+    Map<String, String> businessNames = {};
+    if (businessIds.isNotEmpty) {
+      // Firestore 'whereIn' tiene un límite de 30 elementos por consulta.
+      for (var i = 0; i < businessIds.length; i += 30) {
+        final sublist = businessIds.sublist(i, i + 30 > businessIds.length ? businessIds.length : i + 30);
+        final settingsQuery = await _db.collection('company_settings').where(FieldPath.documentId, whereIn: sublist).get();
+        for (var doc in settingsQuery.docs) {
+          final companyName = doc.data()['company_name'] as String?;
+          if (companyName != null && companyName.isNotEmpty) {
+            businessNames[doc.id] = companyName;
           }
         }
-      } catch (_) {}
+      }
+    }
 
-      profiles.add({
-        'businessId': data['businessId'],
-        'role': data['role'],
-        'label': 'Mi Negocio ($businessLabel )',
-        'type': 'admin',
-        'sellerId': user.uid,
-      });
+    // 4. Construir los perfiles en memoria con los datos ya cargados.
+    for (final doc in uniqueUserDocs) {
+      final data = doc.data();
+      if (data == null) continue;
+
+      final businessId = data['businessId'] as String;
+      final role = data['role'] as String;
+      final businessName = businessNames[businessId];
+
+      if (role == 'admin' && doc.id == user.uid) {
+        final label = 'Mi Negocio (${businessName ?? '...'})';
+        profiles.add({'businessId': businessId, 'role': 'admin', 'label': label, 'type': 'admin', 'sellerId': doc.id});
+      } else if (role == 'seller') {
+        final label = 'Vendedor en ${businessName ?? 'Negocio $businessId'}';
+        profiles.add({'businessId': businessId, 'role': 'seller', 'label': label, 'type': 'seller', 'sellerId': doc.id});
+      }
     }
 
     return profiles;
@@ -798,6 +791,44 @@ class FirestoreService {
     return query.get();
   }
 
+  /// Obtiene un Stream de clientes que tienen deuda pendiente.
+  /// Este método es más eficiente que cargar todas las ventas y pagos.
+  Stream<List<DocumentSnapshot>> getCustomersWithDebt(String businessId, {String? sellerId}) {
+    // 1. Obtener todas las ventas para el filtro dado.
+    return getSales(businessId, sellerId: sellerId).asyncMap((salesSnapshot) async {
+      final salesWithDebt = <String>{}; // Set de IDs de clientes con deuda
+
+      // 2. Iterar sobre cada venta para calcular su saldo.
+      for (final saleDoc in salesSnapshot.docs) {
+        final saleData = saleDoc.data() as Map<String, dynamic>;
+        final totalAmount = (saleData['totalAmount'] as num?)?.toDouble() ?? 0.0;
+        final customerId = saleData['customerId'] as String?;
+
+        if (customerId == null) continue;
+
+        // 3. Obtener los pagos para esta venta específica.
+        final paymentsSnapshot = await getPaymentsForSale(saleDoc.id).first;
+        double paidAmount = 0.0;
+        for (final paymentDoc in paymentsSnapshot.docs) {
+           final paymentData = paymentDoc.data() as Map<String, dynamic>;
+           if (paymentData.containsKey('allocations') && (paymentData['allocations'] as Map).containsKey(saleDoc.id)) {
+             paidAmount += ((paymentData['allocations'] as Map)[saleDoc.id] as num).toDouble();
+           } else if (paymentData['saleId'] == saleDoc.id) {
+             paidAmount += (paymentData['amount'] as num).toDouble();
+           }
+        }
+
+        // 4. Si hay un saldo pendiente, añadir el ID del cliente al set.
+        if (totalAmount - paidAmount > 0.01) {
+          salesWithDebt.add(customerId);
+        }
+      }
+
+      // 5. Finalmente, obtener y devolver los documentos de los clientes con deuda.
+      if (salesWithDebt.isEmpty) return [];
+      return getCustomersOnce(businessId, sellerId: sellerId).then((snapshot) => snapshot.docs.where((doc) => salesWithDebt.contains(doc.id)).toList());
+    });
+  }
   /// Obtiene un Stream de clientes que tienen al menos una venta.
   Stream<List<DocumentSnapshot>> getCustomersWithSales(String userId, {String? sellerId}) {
     // Se unifica la lógica para que sea consistente: tanto para un vendedor específico como para el 

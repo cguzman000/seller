@@ -54,6 +54,7 @@ dependencies:
   showcaseview: ^5.1.0
   shared_preferences: ^2.5.5
   flutter_riverpod: ^3.3.2
+  flutter_image_compress: ^2.5.1
 dev_dependencies:
   flutter_test:
     sdk: flutter

@@ -370,11 +370,16 @@ class _CustomersPageState extends State<CustomersPage> {
                             if (data['creatorName'] != null) Text('${l10n.get('createdBy')}${data['creatorName']}', style: const TextStyle(fontSize: 12, color: Colors.grey)),
                           ],
                         ),
-                        trailing: IconButton(
-                          icon: const Icon(Icons.monetization_on, color: Colors.green),
-                          tooltip: l10n.get('payOnAccount'),
-                          onPressed: () => _startPaymentFlowForCustomer(doc),
-                        ),
+                        trailing: CustomerDebtStatus(
+                          firestoreService: _firestoreService,
+                          businessId: widget.businessId,
+                          customerId: doc.id,
+                          onHasDebt: () => IconButton(
+                            icon: const Icon(Icons.money_off, color: Colors.orange),
+                            tooltip: l10n.get('payOnAccount'),
+                            onPressed: () => _startPaymentFlowForCustomer(doc),
+                          ),
+                        ), // Reemplazamos el botón directo por el nuevo widget
                         onTap: () => _showCustomerDialog(customer: doc),
                       ),
                     );
@@ -697,4 +702,56 @@ class _PendingSale {
   final DocumentSnapshot doc;
   final double pendingAmount;
   _PendingSale(this.doc, this.pendingAmount);
+}
+
+class CustomerDebtStatus extends StatefulWidget {
+  final FirestoreService firestoreService;
+  final String businessId;
+  final String customerId;
+  final Widget Function() onHasDebt;
+
+  const CustomerDebtStatus({
+    super.key,
+    required this.firestoreService,
+    required this.businessId,
+    required this.customerId,
+    required this.onHasDebt,
+  });
+
+  @override
+  State<CustomerDebtStatus> createState() => _CustomerDebtStatusState();
+}
+
+class _CustomerDebtStatusState extends State<CustomerDebtStatus> {
+  late Future<bool> _hasDebtFuture;
+
+  @override
+  void initState() {
+    super.initState();
+    _hasDebtFuture = _checkDebt();
+  }
+
+  Future<bool> _checkDebt() async {
+    final salesSnapshot = await widget.firestoreService.getSalesForCustomer(widget.businessId, widget.customerId).first;
+    for (final saleDoc in salesSnapshot.docs) {
+      final paymentsSnapshot = await widget.firestoreService.getPaymentsForSale(saleDoc.id).first;
+      final totalAmount = (saleDoc.data() as Map<String, dynamic>)['totalAmount'] as num? ?? 0.0;
+      final paidAmount = paymentsSnapshot.docs.fold<double>(0.0, (acc, doc) => acc + ((doc.data() as Map<String, dynamic>)['amount'] as num? ?? 0.0));
+      if (totalAmount - paidAmount > 0.01) return true;
+    }
+    return false;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return FutureBuilder<bool>(
+      future: _hasDebtFuture,
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.done && snapshot.data == true) {
+          return widget.onHasDebt();
+        }
+        return const SizedBox(width: 48); // Espacio vacío si no hay deuda o está cargando
+      },
+    );
+  }
 }

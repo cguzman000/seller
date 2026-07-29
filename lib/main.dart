@@ -1,5 +1,4 @@
 import 'dart:async';
-
 import 'package:flutter/services.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -122,48 +121,44 @@ class _SellerBottomNavigationBarState extends State<SellerBottomNavigationBar> {
     ];
 
     return Container(
-      height: 85,
+      height: 95,
       decoration: BoxDecoration(
         color: colorScheme.surface,
         border: Border(top: BorderSide(color: colorScheme.outlineVariant, width: 0.5)),
       ),
       child: SafeArea(
-        child: SingleChildScrollView(
-          controller: _scrollController,
-          scrollDirection: Axis.horizontal,
-          child: Row(
-            children: items.map((item) {
-              final bool isSelected = widget.currentIndex == item.index;
-              return InkWell(
+        top: false, // No es necesario en la barra inferior
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceAround, // Distribuye el espacio uniformemente
+          children: items.map((item) {
+            final bool isSelected = widget.currentIndex == item.index;
+            return Expanded(
+              child: InkWell(
                 onTap: () => _onItemTapped(item.index),
-                child: Container(
-                  width: 75,
-                  padding: const EdgeInsets.symmetric(vertical: 8),
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(
-                        item.icon,
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(
+                      item.icon,
+                      color: isSelected ? roleColor : unselectedColor,
+                      size: 24,
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      item.label,
+                      style: TextStyle(
+                        fontSize: 10, // Un poco más pequeño para asegurar que quepa
                         color: isSelected ? roleColor : unselectedColor,
-                        size: 24,
+                        fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
                       ),
-                      const SizedBox(height: 4),
-                      Text(
-                        item.label,
-                        style: TextStyle(
-                          fontSize: 11,
-                          color: isSelected ? roleColor : unselectedColor,
-                          fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-                        ),
-                        textAlign: TextAlign.center,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ],
-                  ),
+                      textAlign: TextAlign.center,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
                 ),
-              );
-            }).toList(),
-          ),
+              ),
+            );
+          }).toList(),
         ),
       ),
     );
@@ -570,7 +565,7 @@ class ProfileSelectionPage extends StatelessWidget {
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                     Icon(isAdmin ? Icons.business : Icons.person, color: roleColor, size: 40),
-                    const SizedBox(height: 12),
+                    const SizedBox(height: 10),
                     Text(
                       label,
                       textAlign: TextAlign.center,
@@ -796,7 +791,7 @@ class _MyHomePageState extends State<MyHomePage> {
               child: Text(
                 widget.user.displayName ?? 'Usuario',
                 overflow: TextOverflow.ellipsis,
-                style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w500),
+                style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
               ),
             ),
             const SizedBox(width: 8),
@@ -808,7 +803,7 @@ class _MyHomePageState extends State<MyHomePage> {
               ),
               child: Text(
                 widget.role == 'admin' ? l10n.get('admin') : l10n.get('seller'),
-                style: const TextStyle(fontSize: 12, color: Colors.white, fontWeight: FontWeight.bold),
+                style: const TextStyle(fontSize: 10, color: Colors.white, fontWeight: FontWeight.bold),
               ),
             ),
           ],

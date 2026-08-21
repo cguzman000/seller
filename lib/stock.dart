@@ -9,6 +9,16 @@ import 'app_localizations.dart';
 import 'widgets/barcode_scanner.dart';
 import 'company_settings_provider.dart';
 
+List<T> sortAlphabetically<T>(List<T> items, String Function(T item) selector) {
+  final sorted = List<T>.from(items);
+  sorted.sort((a, b) {
+    final aName = selector(a).toLowerCase();
+    final bName = selector(b).toLowerCase();
+    return aName.compareTo(bName);
+  });
+  return sorted;
+}
+
 class StockPage extends ConsumerStatefulWidget {
   final User user;
   final String businessId;
@@ -271,6 +281,11 @@ class _StockPageState extends ConsumerState<StockPage> {
                     return name.contains(_searchTerm) || barCode.contains(_searchTerm);
                   }).toList();
                 }
+
+                products = sortAlphabetically(products, (doc) {
+                  final data = doc.data() as Map<String, dynamic>;
+                  return (data['name'] as String?) ?? '';
+                });
 
                 if (products.isEmpty) {
                   return Center(child: Text(l10n.get('noProductsFound')));

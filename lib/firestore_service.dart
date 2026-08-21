@@ -589,10 +589,12 @@ class FirestoreService {
   // --- Métodos para obtener datos ---
 
   /// Obtiene un Stream de todos los productos.
-  Stream<QuerySnapshot> getProducts(String userId, {String? categoryId, String? supplierId, String? searchTerm}) {
+  Stream<QuerySnapshot> getProducts(String userId, {String? categoryId, String? supplierId, String? searchTerm, bool includeInactive = false}) {
     Query query = _db.collection('products')
-        .where('userId', isEqualTo: userId)
-        .where('state', isEqualTo: true); // Solo productos activos
+        .where('userId', isEqualTo: userId);
+    if (!includeInactive) {
+      query = query.where('state', isEqualTo: true); // Por defecto, solo productos activos
+    }
 
     // Si se proporciona un categoryId, filtramos por categoría.
     if (categoryId != null && categoryId.isNotEmpty) {
@@ -604,13 +606,8 @@ class FirestoreService {
       query = query.where('supplierId', isEqualTo: supplierId);
     }
 
-    // Si se proporciona un término de búsqueda, filtramos por nombre.
-    // La búsqueda por texto ahora se maneja en el lado del cliente para permitir búsquedas "contains".
-    // Simplemente ordenamos por nombre para mantener un orden consistente.
-    // Si no hay búsqueda, podemos ordenar por otro campo como la fecha de creación.
-    // Ordenamos por 'createdAt' para asegurar que todos los productos se muestren,
-    // incluso si no tienen el campo 'name_lowercase'.
-    return query.orderBy('createdAt', descending: true).snapshots();
+    // Ordenamos por nombre para que la lista de stock siempre aparezca alfabéticamente.
+    return query.orderBy('name').snapshots();
   }
 
   /// Busca productos por nombre (prefijo) para autocompletado.

@@ -552,7 +552,7 @@ class ProductList extends StatelessWidget {
         final supplierMap = {for (var doc in supplierDocs) doc.id: (doc['name'] as String)};
 
         return StreamBuilder<QuerySnapshot>(
-          stream: firestoreService.getProducts(businessId, categoryId: categoryIdFilter, supplierId: supplierIdFilter),
+          stream: firestoreService.getProducts(businessId, categoryId: categoryIdFilter, supplierId: supplierIdFilter, includeInactive: true),
           builder: (context, productSnapshot) {
             if (productSnapshot.connectionState == ConnectionState.waiting) {
               return const Center(child: CircularProgressIndicator());
@@ -716,7 +716,7 @@ class ProductList extends StatelessWidget {
     final l10n = AppLocalizations.of(context);
     final categoryName = categoryId != null ? categoryMap[categoryId] : '${l10n.get('no')} ${l10n.get('category')}';
     final bool isActive = (data['state'] is bool) ? data['state'] : true;
-    final unitsBox = (data['units_box'] as num?)?.toInt() ?? 0;
+    final unitsBox = (data['units_box'] as num?)?.toInt();
     final imageUrl = data['imageUrl']?.toString();
     
     final productItem = InkWell(
@@ -733,9 +733,22 @@ class ProductList extends StatelessWidget {
                   onTap: () => _showLargeImageDialog(context, allProducts, allProducts.indexOf(doc)),
                   child: imageUrl != null
                       ? ClipRRect(
-                          borderRadius: BorderRadius.circular(4.0),
-                          child: Image.network(imageUrl, width: 75, height: 75, fit: BoxFit.cover))
-                      : const Icon(Icons.image, size: 50),
+                          borderRadius: BorderRadius.circular(8.0),
+                          child: Image.network(
+                            imageUrl,
+                            width: 75,
+                            height: 75,
+                            fit: BoxFit.cover,
+                            errorBuilder: (context, error, stackTrace) {
+                              return Container(
+                                width: 75,
+                                height: 75,
+                                color: Colors.grey.shade200,
+                                child: const Icon(Icons.broken_image, color: Colors.grey, size: 40),
+                              );
+                            },
+                          ))
+                      : Container(width: 75, height: 75, color: Colors.grey.shade200, child: const Icon(Icons.image, size: 40, color: Colors.grey)),
                 ),
                 const SizedBox(width: 16),
                 Expanded(
@@ -755,7 +768,7 @@ class ProductList extends StatelessWidget {
                                       decoration: isActive ? TextDecoration.none : TextDecoration.lineThrough,
                                     ),
                                   ),
-                                  if (unitsBox > 1)
+                                  if (unitsBox != null && unitsBox > 1)
                                     TextSpan(
                                       text: ' ${l10n.get('unitsPerBox').replaceFirst('{count}', unitsBox.toString())}',
                                       style: TextStyle(fontSize: 12, fontWeight: FontWeight.normal, color: Colors.grey[600]),
@@ -856,7 +869,7 @@ class ProductList extends StatelessWidget {
                 itemBuilder: (context, index) {
                   final doc = products[index];
                   final data = doc.data() as Map<String, dynamic>;
-                  final unitsBox = (data['units_box'] as num?)?.toInt() ?? 0;
+                  final unitsBox = (data['units_box'] as num?)?.toInt();
                   final productId = doc.id;
 
                   final netPrice = (data['price'] is num)
@@ -871,11 +884,20 @@ class ProductList extends StatelessWidget {
                         Center(
                           child: ClipRRect(
                             borderRadius: BorderRadius.circular(20.0),
-                            child: data['imageUrl'] != null
-                                ? Image.network(data['imageUrl'], fit: BoxFit.contain, height: 300)
-                                : const SizedBox(
-                                    height: 200,
-                                    child: Icon(Icons.image, size: 100, color: Colors.grey)),
+                            child: Container(
+                              height: 300,
+                              width: double.infinity,
+                              color: Colors.grey.shade200,
+                              child: data['imageUrl'] != null
+                                  ? Image.network(
+                                      data['imageUrl'],
+                                      fit: BoxFit.contain,
+                                      errorBuilder: (context, error, stackTrace) {
+                                        return const Icon(Icons.broken_image, size: 100, color: Colors.grey);
+                                      },
+                                    )
+                                  : const Icon(Icons.image, size: 100, color: Colors.grey),
+                            ),
                           ),
                         ),
                         
@@ -891,7 +913,7 @@ class ProductList extends StatelessWidget {
                                       text: (data['name'] as String? ?? ''),
                                       style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
                                     ),
-                                    if (unitsBox > 1)
+                                    if (unitsBox != null && unitsBox > 1)
                                       TextSpan(
                                         text: ' ${l10n.get('unitsPerBox').replaceFirst('{count}', unitsBox.toString())}',
                                         style: const TextStyle(fontSize: 16, fontWeight: FontWeight.normal, color: Colors.grey),

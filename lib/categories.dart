@@ -85,11 +85,11 @@ class _CategoriesPageState extends State<CategoriesPage> {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     return Scaffold(
-      appBar: AppBar(
+      appBar: AppBar( 
         title: Text(l10n.get('categories')),
       ),
       body: StreamBuilder<QuerySnapshot>( // StreamBuilder para los productos
-        stream: _firestoreService.getProducts(widget.businessId),
+        stream: _firestoreService.getProducts(widget.businessId, includeInactive: true),
         builder: (context, productSnapshot) {
           if (productSnapshot.connectionState == ConnectionState.waiting) {
             return const Center(child: CircularProgressIndicator());

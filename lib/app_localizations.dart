@@ -246,6 +246,8 @@ class AppLocalizations {
       'noCustomer': 'Sin cliente',
       'printList': 'Imprimir Lista',
       'printOffersCatalog': 'Imprimir Catálogo de Ofertas',
+      'printList': 'Imprimir Lista',
+      'printOffersCatalog': 'Imprimir Catálogo de Ofertas',
       'noProductsToPrint': 'No hay productos en la lista actual para imprimir.',
       'noOfferProductsToPrint': 'No se encontraron productos con ofertas activas.',
       'noOffers': 'No hay ofertas registradas.',

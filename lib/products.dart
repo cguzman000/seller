@@ -37,6 +37,9 @@ class _ProductsPageState extends State<ProductsPage> { // Este se mantiene como 
   String? _selectedSupplierNameFilter;
   SortOption _sortOption = SortOption.none;
   bool _isScanning = false;
+  bool _isSelectionMode = false;
+  final Set<String> _selectedProductIds = {};
+  final Set<String> _selectedCategoryIds = {};
 
   @override
   void initState() {
@@ -95,6 +98,66 @@ class _ProductsPageState extends State<ProductsPage> { // Este se mantiene como 
     });
   }
 
+  void _toggleProductSelection(String productId, {bool activateSelection = false}) {
+    setState(() {
+      if (activateSelection || _isSelectionMode) {
+        _isSelectionMode = true;
+      }
+      if (_selectedProductIds.contains(productId)) {
+        _selectedProductIds.remove(productId);
+      } else {
+        _selectedProductIds.add(productId);
+      }
+    });
+  }
+
+  void _toggleCategorySelection(String categoryId, List<DocumentSnapshot> productsInCategory, {bool activateSelection = false}) {
+    setState(() {
+      if (activateSelection || _isSelectionMode) {
+        _isSelectionMode = true;
+      }
+      final ids = productsInCategory.map((doc) => doc.id).toSet();
+      if (_selectedCategoryIds.contains(categoryId)) {
+        _selectedCategoryIds.remove(categoryId);
+        _selectedProductIds.removeAll(ids);
+      } else {
+        _selectedCategoryIds.add(categoryId);
+        _selectedProductIds.addAll(ids);
+      }
+    });
+  }
+
+  Future<void> _toggleSelectAllVisibleProducts() async {
+    final visibleProductDocs = await _firestoreService.getProductsOnce(
+      widget.businessId,
+      categoryId: _selectedCategoryIdFilter,
+      supplierId: _selectedSupplierIdFilter,
+    );
+
+    final visibleIds = visibleProductDocs.docs.where((doc) {
+      final data = doc.data() as Map<String, dynamic>;
+      final isActive = data['state'] ?? true;
+      if (!isActive) return false;
+      if (_searchTerm.isEmpty) return true;
+      final name = (data['name'] as String? ?? '').toLowerCase();
+      return name.contains(_searchTerm.toLowerCase());
+    }).map((doc) => doc.id).toSet();
+
+    if (visibleIds.isEmpty) return;
+
+    setState(() {
+      _isSelectionMode = true;
+      final allSelected = visibleIds.every((id) => _selectedProductIds.contains(id));
+      if (allSelected) {
+        _selectedProductIds.removeAll(visibleIds);
+        _selectedCategoryIds.clear();
+      } else {
+        _selectedProductIds.addAll(visibleIds);
+        _selectedCategoryIds.clear();
+      }
+    });
+  }
+
   Future<void> _printProducts(WidgetRef ref) async {
     // Obtenemos la configuración de la empresa desde el provider
     final settings = ref.read(companySettingsProvider(widget.businessId));
@@ -119,6 +182,10 @@ class _ProductsPageState extends State<ProductsPage> { // Este se mantiene como 
       // Solo mostrar productos activos en el PDF
       final isActive = data['state'] ?? true;
       if (!isActive) return false;
+
+      if (_isSelectionMode && _selectedProductIds.isNotEmpty) {
+        return _selectedProductIds.contains(doc.id);
+      }
 
       if (_searchTerm.isEmpty) return true;
       final name = data['name_lowercase'] as String? ?? '';
@@ -321,6 +388,24 @@ class _ProductsPageState extends State<ProductsPage> { // Este se mantiene como 
             onPressed: () => _printProducts(ref),
             tooltip: l10n.get('printList'),
           ),
+          if (_isSelectionMode) ...[
+            IconButton(
+              icon: const Icon(Icons.select_all),
+              onPressed: _toggleSelectAllVisibleProducts,
+              tooltip: 'Seleccionar todo',
+            ),
+            IconButton(
+              icon: const Icon(Icons.clear),
+              onPressed: () {
+                setState(() {
+                  _isSelectionMode = false;
+                  _selectedProductIds.clear();
+                  _selectedCategoryIds.clear();
+                });
+              },
+              tooltip: 'Cancelar selección',
+            ),
+          ],
         ],
       ),
       body: Column(
@@ -477,6 +562,11 @@ class _ProductsPageState extends State<ProductsPage> { // Este se mantiene como 
               sortOption: _sortOption,
               onProductTap: (product) => _showProductDialog(product: product),
               role: widget.role,
+              isSelectionMode: _isSelectionMode,
+              selectedProductIds: _selectedProductIds,
+              selectedCategoryIds: _selectedCategoryIds,
+              onToggleProductSelection: _toggleProductSelection,
+              onToggleCategorySelection: _toggleCategorySelection,
             ),
           ),
         ],
@@ -512,6 +602,11 @@ class ProductList extends StatelessWidget {
   final SortOption sortOption;
   final Function(DocumentSnapshot) onProductTap;
   final String role;
+  final bool isSelectionMode;
+  final Set<String> selectedProductIds;
+  final Set<String> selectedCategoryIds;
+  final void Function(String productId, {bool activateSelection}) onToggleProductSelection;
+  final void Function(String categoryId, List<DocumentSnapshot> productsInCategory, {bool activateSelection}) onToggleCategorySelection;
 
   const ProductList({
     super.key,
@@ -525,6 +620,11 @@ class ProductList extends StatelessWidget {
     required this.sortOption,
     required this.onProductTap,
     required this.role,
+    required this.isSelectionMode,
+    required this.selectedProductIds,
+    required this.selectedCategoryIds,
+    required this.onToggleProductSelection,
+    required this.onToggleCategorySelection,
   });
 
   @override
@@ -682,12 +782,25 @@ class ProductList extends StatelessWidget {
           title = (sortOption == SortOption.byCategory ? categoryMap[key] : supplierMap[key]) ?? 'Desconocido';
         }
 
+        final allSelectedInGroup = groupProducts.isNotEmpty && groupProducts.every((doc) => selectedProductIds.contains(doc.id));
+
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
-              child: Text(title.toUpperCase(), style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.grey, letterSpacing: 1.2)),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Text(title.toUpperCase(), style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.grey, letterSpacing: 1.2)),
+                  ),
+                  if (isSelectionMode)
+                    Checkbox(
+                      value: allSelectedInGroup,
+                      onChanged: (_) => onToggleCategorySelection(key, groupProducts, activateSelection: true),
+                    ),
+                ],
+              ),
             ),
             ...groupProducts.map((doc) => Column(children: [_buildProductItem(context, doc, categoryMap, products), const Divider(height: 1, indent: 16, endIndent: 16)])),
             const Divider(),
@@ -720,7 +833,14 @@ class ProductList extends StatelessWidget {
     final imageUrl = data['imageUrl']?.toString();
     
     final productItem = InkWell(
-      onTap: () => onProductTap(doc),
+      onLongPress: () => onToggleProductSelection(doc.id, activateSelection: !isSelectionMode),
+      onTap: () {
+        if (isSelectionMode) {
+          onToggleProductSelection(doc.id);
+        } else {
+          onProductTap(doc);
+        }
+      },
       child: Container(
           color: isActive ? Colors.transparent : Colors.grey.shade50,
           child: Opacity(
@@ -729,6 +849,14 @@ class ProductList extends StatelessWidget {
               padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
             child: Row(
               children: [
+                if (isSelectionMode)
+                  Padding(
+                    padding: const EdgeInsets.only(right: 12.0),
+                    child: Checkbox(
+                      value: selectedProductIds.contains(doc.id),
+                      onChanged: (_) => onToggleProductSelection(doc.id, activateSelection: true),
+                    ),
+                  ),
                 GestureDetector(
                   onTap: () => _showLargeImageDialog(context, allProducts, allProducts.indexOf(doc)),
                   child: imageUrl != null

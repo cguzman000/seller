@@ -1020,6 +1020,8 @@ class ProductList extends StatelessWidget {
                                   ? Image.network(
                                       data['imageUrl'],
                                       fit: BoxFit.contain,
+                                      cacheWidth: 1200,
+                                      cacheHeight: 1200,
                                       errorBuilder: (context, error, stackTrace) {
                                         return const Icon(Icons.broken_image, size: 100, color: Colors.grey);
                                       },
@@ -1211,6 +1213,7 @@ class _ProductDialogState extends State<ProductDialog> {
   String? _selectedSupplierId;
   File? _imageFile;
   String? _existingImageUrl;
+  String _productImageSize = ProductImageSize.medium;
   final ValueNotifier<String?> _suggestedPriceTextNotifier = ValueNotifier(null);
   double _vatRateFromSettings = 0.21;
   double _defaultMarginFromSettings = 30.0;
@@ -1300,6 +1303,7 @@ class _ProductDialogState extends State<ProductDialog> {
       final settingsData = settingsDoc.data() as Map<String, dynamic>?;
       _vatRateFromSettings = (settingsData?['vat_rate'] as num? ?? 21.0) / 100.0;
       _defaultMarginFromSettings = (settingsData?['profit_margin'] as num? ?? 30.0).toDouble();
+      _productImageSize = (settingsData?['product_image_size'] as String? ?? ProductImageSize.medium);
     }
   }
 
@@ -1561,10 +1565,49 @@ class _ProductDialogState extends State<ProductDialog> {
       try {
         if (isEditing) {
           if (_imageFile != null) {
-            imageUrl = await widget.firestoreService.uploadImage(_imageFile!, widget.product!.id);
-          }          await widget.firestoreService.updateProduct(widget.product!.id, name, description, barCode, purchasePriceToSave, _purchasePriceIncludesVat, salePriceToSave, stock, safetyStock, unitsBox, imageUrl, _selectedCategoryId, _selectedSupplierId, _isActive, imageFile: _imageFile);
+            imageUrl = await widget.firestoreService.uploadImage(
+              _imageFile!,
+              widget.product!.id,
+              productImageSize: _productImageSize,
+            );
+          }
+          await widget.firestoreService.updateProduct(
+            widget.product!.id,
+            name,
+            description,
+            barCode,
+            purchasePriceToSave,
+            _purchasePriceIncludesVat,
+            salePriceToSave,
+            stock,
+            safetyStock,
+            unitsBox,
+            imageUrl,
+            _selectedCategoryId,
+            _selectedSupplierId,
+            _isActive,
+            imageFile: _imageFile,
+            productImageSize: _productImageSize,
+          );
         } else {
-          await widget.firestoreService.addProduct(widget.businessId, name, description, barCode, purchasePriceToSave, _purchasePriceIncludesVat, salePriceToSave, stock, safetyStock, unitsBox, null, _selectedCategoryId, _selectedSupplierId, _isActive, imageFile: _imageFile);
+          await widget.firestoreService.addProduct(
+            widget.businessId,
+            name,
+            description,
+            barCode,
+            purchasePriceToSave,
+            _purchasePriceIncludesVat,
+            salePriceToSave,
+            stock,
+            safetyStock,
+            unitsBox,
+            null,
+            _selectedCategoryId,
+            _selectedSupplierId,
+            _isActive,
+            imageFile: _imageFile,
+            productImageSize: _productImageSize,
+          );
         }
       } catch (e) {
         if (mounted) {

@@ -28,6 +28,7 @@ class _SettingsPageState extends State<SettingsPage> {
   final ImagePicker _picker = ImagePicker();
 
   String? _logoUrl;
+  String _productImageSize = ProductImageSize.medium;
   bool _isLoading = false;
 
   @override
@@ -57,9 +58,11 @@ class _SettingsPageState extends State<SettingsPage> {
       _profitMarginController.text = (data['profit_margin'] ?? '30.0').toString();
       _companyPhoneController.text = data['company_phone'] ?? '';
       _decimalPlacesController.text = (data['decimal_places'] ?? '0').toString();
+      final savedSize = ProductImageSize.normalize(data['product_image_size'] as String? ?? ProductImageSize.medium);
       if (mounted) {
         setState(() {
           _logoUrl = data['company_logo_url'];
+          _productImageSize = savedSize;
         });
       }
     }
@@ -140,6 +143,7 @@ class _SettingsPageState extends State<SettingsPage> {
       final profitMargin = double.tryParse(_profitMarginController.text) ?? 30.0;
       final companyPhone = _companyPhoneController.text;
       final decimalPlaces = int.tryParse(_decimalPlacesController.text) ?? 0;
+      final normalizedProductImageSize = ProductImageSize.normalize(_productImageSize);
       final isInitialSetup = widget.isInitialSetup;
 
       await _firestoreService.updateCompanySettings(widget.user.uid, {
@@ -149,6 +153,7 @@ class _SettingsPageState extends State<SettingsPage> {
         'profit_margin': profitMargin,
         'company_phone': companyPhone,
         'decimal_places': decimalPlaces,
+        'product_image_size': normalizedProductImageSize,
         // Si es la configuración inicial, eliminamos la bandera para no volver a redirigir.
         if (isInitialSetup) 'is_initial_setup': FieldValue.delete(),
       });
@@ -245,6 +250,26 @@ class _SettingsPageState extends State<SettingsPage> {
                 TextFormField(controller: _profitMarginController, decoration: InputDecoration(labelText: l10n.get('profitMargin'), border: const OutlineInputBorder(), hintText: l10n.get('profitMarginHint')), keyboardType: const TextInputType.numberWithOptions(decimal: true), validator: (v) => double.tryParse(v!) == null ? l10n.get('enterValidNumber') : null),
                 const SizedBox(height: 16),
                 TextFormField(controller: _decimalPlacesController, decoration: InputDecoration(labelText: l10n.get('decimalPlaces'), border: const OutlineInputBorder(), hintText: l10n.get('decimalPlacesHint')), keyboardType: TextInputType.number, validator: (v) => int.tryParse(v!) == null ? l10n.get('enterValidNumber') : null),
+                const SizedBox(height: 16),
+                Text('Tamaño de foto del producto', style: Theme.of(context).textTheme.titleMedium),
+                const SizedBox(height: 8),
+                DropdownButtonFormField<String>(
+                  value: ProductImageSize.normalize(_productImageSize),
+                  decoration: const InputDecoration(
+                    labelText: 'Medida',
+                    border: OutlineInputBorder(),
+                  ),
+                  items: const [
+                    DropdownMenuItem(value: ProductImageSize.small, child: Text('100x100 px')),
+                    DropdownMenuItem(value: ProductImageSize.medium, child: Text('250x250 px')),
+                    DropdownMenuItem(value: ProductImageSize.large, child: Text('500x500 px')),
+                  ],
+                  onChanged: (value) {
+                    if (value != null) {
+                      setState(() => _productImageSize = value);
+                    }
+                  },
+                ),
               ],
             ),
           ),

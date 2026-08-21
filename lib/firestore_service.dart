@@ -2,7 +2,59 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'dart:io';
+import 'dart:ui' as ui;
 import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter_image_compress/flutter_image_compress.dart';
+
+class ProductImageSize {
+  static const String small = '200';
+  static const String medium = '500';
+  static const String large = '1000';
+
+  static String normalize(String? value) {
+    switch ((value ?? small).trim().toLowerCase()) {
+      case '50':
+      case '100':
+      case '200':
+      case 'small':
+        return small;
+      case '250':
+      case '500':
+      case 'medium':
+        return medium;
+      case '1000':
+      case 'large':
+        return large;
+      default:
+        return small;
+    }
+  }
+
+  static int toPx(String? value) {
+    switch (normalize(value)) {
+      case '500':
+        return 500;
+      case '1000':
+        return 1000;
+      case '200':
+      default:
+        return 200;
+    }
+  }
+
+  static String getLabel(String? value) {
+    switch (normalize(value)) {
+      case '500':
+        return '500x500';
+      case '1000':
+        return '1000x1000';
+      case '200':
+      default:
+        return '200x200';
+    }
+  }
+}
 
 class FirestoreService {
   // Obtener la instancia de Cloud Firestore
@@ -111,7 +163,7 @@ class FirestoreService {
   }
 
   /// Añade un nuevo producto a la colección 'products'.
-  Future<DocumentReference> addProduct(String userId, String name, String? description, String? barCode, double purchPrice, bool purchasePriceIncludesVat, double price, double stock, double safetyStock, int? unitsBox, String? imageUrl, String? categoryId, String? supplierId, bool state, {File? imageFile}) async {
+  Future<DocumentReference> addProduct(String userId, String name, String? description, String? barCode, double purchPrice, bool purchasePriceIncludesVat, double price, double stock, double safetyStock, int? unitsBox, String? imageUrl, String? categoryId, String? supplierId, bool state, {File? imageFile, String? productImageSize}) async {
     // 1. Crea el documento del producto en Firestore SIN la URL de la imagen.
     // Esto nos da un ID de producto estable de inmediato.
     DocumentReference productRef = await _db.collection('products').add({
@@ -135,7 +187,7 @@ class FirestoreService {
 
     // 2. Si se proporcionó un archivo de imagen, súbelo AHORA.
     if (imageFile != null) {
-      final String downloadUrl = await uploadImage(imageFile, productRef.id);
+      final String downloadUrl = await uploadImage(imageFile, productRef.id, productImageSize: productImageSize);
       // 3. Actualiza el documento recién creado con la URL de la imagen.
       await productRef.update({'imageUrl': downloadUrl});
     }
@@ -144,7 +196,7 @@ class FirestoreService {
   }
 
   /// Actualiza un producto existente en la colección 'products'.
-  Future<void> updateProduct(String productId, String name, String? description, String? barCode, double purchPrice, bool purchasePriceIncludesVat, double price, double stock, double safetyStock, int? unitsBox, String? imageUrl, String? categoryId, String? supplierId, bool state, {File? imageFile}) async {
+  Future<void> updateProduct(String productId, String name, String? description, String? barCode, double purchPrice, bool purchasePriceIncludesVat, double price, double stock, double safetyStock, int? unitsBox, String? imageUrl, String? categoryId, String? supplierId, bool state, {File? imageFile, String? productImageSize}) async {
     final Map<String, dynamic> updates = {
       'categoryId': categoryId,
       'supplierId': supplierId,
@@ -164,7 +216,7 @@ class FirestoreService {
 
     // 1. Si se proporciona un nuevo archivo de imagen, súbelo.
     if (imageFile != null) {
-      updates['imageUrl'] = await uploadImage(imageFile, productId);
+      updates['imageUrl'] = await uploadImage(imageFile, productId, productImageSize: productImageSize);
     } else if (imageUrl == null) {
       // 2. Si no hay archivo nuevo y la URL existente es nula,
       // significa que se quiere borrar la imagen del producto.
@@ -307,8 +359,24 @@ class FirestoreService {
   }
 
   /// Sube una imagen a Firebase Storage y devuelve la URL de descarga.
-  Future<String> uploadImage(File imageFile, String productId) async {
-    // Primero, intenta borrar la imagen existente para evitar archivos huérfanos.
+  Future<String> uploadImage(File imageFile, String productId, {String? productImageSize}) async {
+    String resolvedSize = productImageSize ?? '100';
+    if (productImageSize == null) {
+      final productDoc = await _db.collection('products').doc(productId).get();
+      final businessId = productDoc.data()?['userId'] as String?;
+      if (businessId != null && businessId.isNotEmpty) {
+        final settingsDoc = await _db.collection('company_settings').doc(businessId).get();
+        resolvedSize = (settingsDoc.data()?['product_image_size'] as String? ?? ProductImageSize.medium);
+      }
+    }
+
+    final sizePx = ProductImageSize.toPx(resolvedSize);
+    File fileToUpload = imageFile;
+
+    if (sizePx > 0 && imageFile.existsSync()) {
+      fileToUpload = await _cropToSquareImage(imageFile, sizePx);
+    }
+
     try {
       final existingDoc = await _db.collection('products').doc(productId).get();
       if (existingDoc.exists) {
@@ -320,26 +388,56 @@ class FirestoreService {
         }
       }
     } on FirebaseException catch (e) {
-      // Si la imagen antigua no se encuentra, no es un error crítico.
-      // Simplemente lo ignoramos y continuamos con la subida de la nueva.
       if (e.code != 'object-not-found') {
-        rethrow; // Si es otro tipo de error, sí lo lanzamos.
+        rethrow;
       }
     }
     try {
-      // Crear una referencia a la ubicación donde se guardará la imagen
       final ref = _storage.ref().child('product_images').child('$productId.jpg');
-
-      // Subir el archivo
-      await ref.putFile(imageFile);
-
-      // Obtener la URL de descarga
+      await ref.putFile(fileToUpload);
       final downloadUrl = await ref.getDownloadURL();
       return downloadUrl;
     } catch (e) {
-      // Manejar el error apropiadamente
       rethrow;
     }
+  }
+
+  Future<File> _cropToSquareImage(File imageFile, int sizePx) async {
+    final bytes = await imageFile.readAsBytes();
+    final decodedImage = await decodeImageFromList(bytes);
+
+    final cropSize = decodedImage.width < decodedImage.height
+        ? decodedImage.width
+        : decodedImage.height;
+
+    final offsetX = ((decodedImage.width - cropSize) / 2).round();
+    final offsetY = ((decodedImage.height - cropSize) / 2).round();
+
+    final recorder = ui.PictureRecorder();
+    final canvas = Canvas(recorder);
+    final paint = Paint()..isAntiAlias = true;
+
+    final srcRect = Rect.fromLTWH(
+      offsetX.toDouble(),
+      offsetY.toDouble(),
+      cropSize.toDouble(),
+      cropSize.toDouble(),
+    );
+    final dstRect = Rect.fromLTWH(0, 0, sizePx.toDouble(), sizePx.toDouble());
+
+    final image = await decodeImageFromList(bytes);
+    canvas.drawImageRect(image, srcRect, dstRect, paint);
+
+    final picture = recorder.endRecording();
+    final resized = await picture.toImage(sizePx, sizePx);
+    final byteData = await resized.toByteData(format: ui.ImageByteFormat.png);
+
+    final outputPath = '${imageFile.parent.path}/square_${DateTime.now().millisecondsSinceEpoch}.png';
+    final squareFile = File(outputPath);
+    if (byteData != null) {
+      await squareFile.writeAsBytes(byteData.buffer.asUint8List());
+    }
+    return squareFile;
   }
 
   /// Añade un nuevo cliente a la colección 'customers'.

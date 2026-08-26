@@ -19,6 +19,7 @@
   <meta charset="UTF-8">
   <meta content="IE=Edge" http-equiv="X-UA-Compatible">
   <meta name="description" content="A new Flutter project.">
+  <meta name="google-signin-client_id" content="600926343476-8ik2mv5871o1almt3rkjaed2a31ao689.apps.googleusercontent.com" />
 
   <!-- iOS meta tags & icons -->
   <meta name="mobile-web-app-capable" content="yes">
@@ -32,21 +33,28 @@
   <title>Seller Web</title>
   <link rel="manifest" href="manifest.json">
 
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-storage-compat.js"></script>
+
   <script>
-    // Este script se carga antes que Flutter para inicializar Firebase.
     const firebaseConfig = {
-      apiKey: "AIzaSyCbzp6M5j5nUgFMDykKNEuBHNafb1ODDLU", // ¡Mantén esto seguro!
+      apiKey: "AIzaSyCbzp6M5j5nUgFMDykKNEuBHNafb1ODDLU",
       authDomain: "seller-f4e46.firebaseapp.com",
       projectId: "seller-f4e46",
-      storageBucket: "seller-f4e46.appspot.com", // Corregido el dominio de storage
+      storageBucket: "seller-f4e46.appspot.com",
       messagingSenderId: "600926343476",
       appId: "1:600926343476:web:4ca07dfe4794042754d561",
       measurementId: "G-6J34X4V7VN"
     };
+
+    if (typeof firebase !== 'undefined') {
+      firebase.initializeApp(firebaseConfig);
+    }
   </script>
 </head>
 <body>
-  <<base href="$FLUTTER_BASE_HREF">
   <div id="flutter-app"></div>
   <script src="flutter_bootstrap.js" async></script>
 </body>

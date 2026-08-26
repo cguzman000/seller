@@ -3,6 +3,8 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'app_localizations.dart';
 
+const String _googleWebClientId = '600926343476-8ik2mv5871o1almt3rkjaed2a31ao689.apps.googleusercontent.com';
+
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
 
@@ -12,7 +14,10 @@ class LoginPage extends StatefulWidget {
 
 class _LoginPageState extends State<LoginPage> {
   final FirebaseAuth _auth = FirebaseAuth.instance;
-  final GoogleSignIn _googleSignIn = GoogleSignIn();
+  final GoogleSignIn _googleSignIn = GoogleSignIn(
+    clientId: _googleWebClientId,
+    scopes: <String>['email', 'profile'],
+  );
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   final _formKey = GlobalKey<FormState>();

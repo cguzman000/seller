@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -28,13 +29,29 @@ import 'app_localizations.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await Firebase.initializeApp();
 
-  await FirebaseAppCheck.instance.activate(
-    // Usamos 'debug' para desarrollo. Para producción usa 'AndroidProvider.playIntegrity'.
-    androidProvider: AndroidProvider.debug,
-    appleProvider: AppleProvider.appAttest,
-  );
+  if (kIsWeb) {
+    await Firebase.initializeApp(
+      options: const FirebaseOptions(
+        apiKey: 'AIzaSyCbzp6M5j5nUgFMDykKNEuBHNafb1ODDLU',
+        authDomain: 'seller-f4e46.firebaseapp.com',
+        projectId: 'seller-f4e46',
+        storageBucket: 'seller-f4e46.appspot.com',
+        messagingSenderId: '600926343476',
+        appId: '1:600926343476:web:4ca07dfe4794042754d561',
+      ),
+    );
+  } else {
+    await Firebase.initializeApp();
+  }
+ if (!kIsWeb) {
+    await FirebaseAppCheck.instance.activate(
+      // Usamos 'debug' para desarrollo. Para producción usa 'AndroidProvider.playIntegrity'.
+      androidProvider: AndroidProvider.debug,
+      appleProvider: AppleProvider.appAttest,
+    );
+  }
+
   await initializeDateFormatting(
     null,
     null,

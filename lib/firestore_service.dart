@@ -5,7 +5,6 @@ import 'dart:io';
 import 'dart:ui' as ui;
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter_image_compress/flutter_image_compress.dart';
 
 class ProductImageSize {
   static const String small = '200';
@@ -773,7 +772,7 @@ class FirestoreService {
 
   /// Obtiene un Stream de todas las ventas de un usuario.
   /// Si se proporciona [sellerId], filtra solo las ventas de ese vendedor.
-  Stream<QuerySnapshot> getSales(String userId, {String? sellerId, DateTime? startDate, DateTime? endDate, String? customerId}) {
+  Stream<QuerySnapshot> getSales(String userId, {String? sellerId, DateTime? startDate, DateTime? endDate, String? customerId, bool? delivered}) {
     Query query = _db
         .collection('sales')
         .where('userId', isEqualTo: userId);
@@ -801,6 +800,10 @@ class FirestoreService {
     }
     if (endDate != null) {
       query = query.where('saleDate', isLessThanOrEqualTo: endDate);
+    }
+    // Filtrar por estado de entrega si se pasó el parámetro
+    if (delivered != null) {
+      query = query.where('delivered', isEqualTo: delivered);
     }
         
     return query.orderBy('saleDate', descending: true).snapshots();

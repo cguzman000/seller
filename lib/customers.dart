@@ -26,6 +26,7 @@ class _CustomersPageState extends State<CustomersPage> {
   String _searchTerm = '';
   String? _selectedCity;
   String _selectedSellerId = 'all'; // Cambiado a String no opcional para consistencia
+  bool _onlyWithDebt = false;
 
   @override
   void initState() {
@@ -258,12 +259,30 @@ class _CustomersPageState extends State<CustomersPage> {
                     return PopupMenuButton<String?>(
                       icon: Icon(Icons.filter_list, color: (_selectedCity != null && _selectedCity != 'Todas las ciudades') ? Theme.of(context).colorScheme.primary : null),
                       onSelected: (city) {
-                        setState(() {
-                          _selectedCity = city;
-                        });
+                        if (city == '__withDebt__') {
+                          setState(() => _onlyWithDebt = !_onlyWithDebt);
+                        } else if (city == '__all_customers__') {
+                          setState(() {
+                            _onlyWithDebt = false;
+                            _selectedCity = null;
+                          });
+                        } else {
+                          setState(() {
+                            _selectedCity = city;
+                          });
+                        }
                       },
                       itemBuilder: (context) {
                         return [
+                          PopupMenuItem<String?>(
+                            value: '__all_customers__',
+                            child: Text(l10n.get('allCustomers')),
+                          ),
+                          PopupMenuItem<String?>(
+                            value: '__withDebt__',
+                            child: Text(l10n.get('customersWithDebt')),
+                          ),
+                          const PopupMenuDivider(),
                           PopupMenuItem<String?>(
                             value: 'Todas las ciudades',
                             child: Text(l10n.get('allCities')),
@@ -277,22 +296,24 @@ class _CustomersPageState extends State<CustomersPage> {
                     );
                   },
                 ),
+                const SizedBox(width: 8),
               ],
             ),
           ),
           Expanded(
-            child: StreamBuilder<QuerySnapshot>(
-              stream: _firestoreService.getCustomers(widget.businessId, searchTerm: _searchTerm, city: _selectedCity, sellerId: widget.role == 'admin' ? _selectedSellerId : widget.sellerId),
+            child: StreamBuilder<List<DocumentSnapshot>>(
+              stream: _onlyWithDebt
+                  ? _firestoreService.getCustomersWithDebt(widget.businessId, sellerId: widget.role == 'admin' ? _selectedSellerId : widget.sellerId)
+                  : _firestoreService.getCustomers(widget.businessId, searchTerm: _searchTerm, city: _selectedCity, sellerId: widget.role == 'admin' ? _selectedSellerId : widget.sellerId).map((qs) => qs.docs),
               builder: (context, snapshot) {
                 if (snapshot.hasError) {
-                  // Esto forzará el error a la consola de VS Code/Android Studio
                   debugPrint("DEBUG: Error en Stream de Clientes: ${snapshot.error}");
                   return Center(child: Text('Algo salió mal: ${snapshot.error}'));
                 }
                 if (snapshot.connectionState == ConnectionState.waiting) {
                   return const Center(child: CircularProgressIndicator());
                 }
-                var filteredDocs = snapshot.data!.docs;
+                var filteredDocs = snapshot.data!;
 
                 if (filteredDocs.isEmpty) {
                   return Center(child: Text(_searchTerm.isEmpty && (_selectedCity == null || _selectedCity == 'Todas las ciudades') ? l10n.get('noCustomersAdd') : l10n.get('noCustomers')));
@@ -534,7 +555,7 @@ class _CustomersPageState extends State<CustomersPage> {
                           final date = (data['saleDate'] as Timestamp?)?.toDate() ?? DateTime.now();
                           
                           return CheckboxListTile(
-                            title: Text('Venta #${data['sale_number'] ?? 'S/N'}'),
+                            title: Text('${l10n.get('saleNumber')}${data['sale_number'] ?? 'S/N'}'),
                             subtitle: Text('${DateFormat('dd/MM/yyyy').format(date)} - Pend: \$${item.pendingAmount.toStringAsFixed(2)}'),
                             value: selectedSales[item.doc.id] ?? false,
                             onChanged: (val) {
@@ -750,7 +771,19 @@ class _CustomerDebtStatusState extends State<CustomerDebtStatus> {
         if (snapshot.connectionState == ConnectionState.done && snapshot.data == true) {
           return widget.onHasDebt();
         }
-        return const SizedBox(width: 48); // Espacio vacío si no hay deuda o está cargando
+        final l10n = AppLocalizations.of(context);
+        // Mostrar icono verde indicando que está al día
+        if (snapshot.connectionState == ConnectionState.done && snapshot.data == false) {
+          return IconButton(
+            icon: const Icon(Icons.check_circle, color: Colors.green),
+            tooltip: l10n.get('allUpToDate'),
+            onPressed: () {
+              ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(l10n.get('allUpToDate'))));
+            },
+          );
+        }
+
+        return const SizedBox(width: 48); // Espacio vacío si está cargando
       },
     );
   }

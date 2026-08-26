@@ -1570,6 +1570,7 @@ class _SalesAndPaymentsReportPageState extends State<SalesAndPaymentsReportPage>
   }
 
   Widget _buildIndexErrorWidget(String error) {
+    final l10n = AppLocalizations.of(context);
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(16.0),
@@ -1578,10 +1579,10 @@ class _SalesAndPaymentsReportPageState extends State<SalesAndPaymentsReportPage>
           children: [
             const Icon(Icons.warning_amber_rounded, color: Colors.orange, size: 48),
             const SizedBox(height: 16),
-            const Text('Falta un índice en Firebase',
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+            Text(l10n.get('firebaseIndexMissing'),
+                style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
             const SizedBox(height: 8),
-            const Text('Selecciona y copia el siguiente enlace para crearlo:', textAlign: TextAlign.center),
+            Text(l10n.get('firebaseIndexInstructions'), textAlign: TextAlign.center),
             const SizedBox(height: 16),
             SelectableText(
               error,

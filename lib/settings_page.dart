@@ -181,6 +181,16 @@ class _SettingsPageState extends State<SettingsPage> {
     }
   }
 
+  Widget _buildSectionTitle(String title) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Text(
+        title,
+        style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
@@ -199,8 +209,7 @@ class _SettingsPageState extends State<SettingsPage> {
                   const SizedBox(height: 20),
                   const Divider(),
                 ],
-                Text(l10n.get('companyLogo'), style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-                const SizedBox(height: 10),
+                _buildSectionTitle(l10n.get('companyLogo')),
                 Center(
                   child: Stack(
                     children: [
@@ -239,30 +248,34 @@ class _SettingsPageState extends State<SettingsPage> {
                   ),
                 ),
                 const SizedBox(height: 24),
+                _buildSectionTitle(l10n.get('companyInformationTitle')),
+                const SizedBox(height: 8),
                 TextFormField(controller: _companyNameController, decoration: InputDecoration(labelText: l10n.get('companyName'), border: const OutlineInputBorder()), validator: (v) => v!.isEmpty ? l10n.get('enterName') : null),
                 const SizedBox(height: 16),
                 TextFormField(controller: _companyAddressController, decoration: InputDecoration(labelText: l10n.get('companyAddress'), border: const OutlineInputBorder())),
                 const SizedBox(height: 16),
                 TextFormField(controller: _companyPhoneController, decoration: InputDecoration(labelText: l10n.get('companyPhone'), border: const OutlineInputBorder()), keyboardType: TextInputType.phone),
-                const SizedBox(height: 16),
+                const SizedBox(height: 24),
+                _buildSectionTitle(l10n.get('calculationInformationTitle')),
+                const SizedBox(height: 8),
                 TextFormField(controller: _vatRateController, decoration: InputDecoration(labelText: l10n.get('vatRate'), border: const OutlineInputBorder(), hintText: l10n.get('vatRateHint')), keyboardType: const TextInputType.numberWithOptions(decimal: true), validator: (v) => double.tryParse(v!) == null ? l10n.get('enterValidNumber') : null),
                 const SizedBox(height: 16),
                 TextFormField(controller: _profitMarginController, decoration: InputDecoration(labelText: l10n.get('profitMargin'), border: const OutlineInputBorder(), hintText: l10n.get('profitMarginHint')), keyboardType: const TextInputType.numberWithOptions(decimal: true), validator: (v) => double.tryParse(v!) == null ? l10n.get('enterValidNumber') : null),
                 const SizedBox(height: 16),
                 TextFormField(controller: _decimalPlacesController, decoration: InputDecoration(labelText: l10n.get('decimalPlaces'), border: const OutlineInputBorder(), hintText: l10n.get('decimalPlacesHint')), keyboardType: TextInputType.number, validator: (v) => int.tryParse(v!) == null ? l10n.get('enterValidNumber') : null),
-                const SizedBox(height: 16),
-                Text('Tamaño de foto del producto', style: Theme.of(context).textTheme.titleMedium),
+                const SizedBox(height: 24),
+                _buildSectionTitle(l10n.get('imageSizeTitle')),
                 const SizedBox(height: 8),
                 DropdownButtonFormField<String>(
-                  value: ProductImageSize.normalize(_productImageSize),
-                  decoration: const InputDecoration(
-                    labelText: 'Medida',
-                    border: OutlineInputBorder(),
+                  initialValue: ProductImageSize.normalize(_productImageSize),
+                  decoration: InputDecoration(
+                    labelText: l10n.get('imageSizeLabel'),
+                    border: const OutlineInputBorder(),
                   ),
                   items: const [
-                    DropdownMenuItem(value: ProductImageSize.small, child: Text('100x100 px')),
-                    DropdownMenuItem(value: ProductImageSize.medium, child: Text('250x250 px')),
-                    DropdownMenuItem(value: ProductImageSize.large, child: Text('500x500 px')),
+                    DropdownMenuItem(value: ProductImageSize.small, child: Text('200x200 px')),
+                    DropdownMenuItem(value: ProductImageSize.medium, child: Text('500x500 px')),
+                    DropdownMenuItem(value: ProductImageSize.large, child: Text('1000x1000 px')),
                   ],
                   onChanged: (value) {
                     if (value != null) {

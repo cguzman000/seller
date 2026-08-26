@@ -20,6 +20,10 @@ class SalesPage extends StatefulWidget {
 
 enum DateFilter { today, week, month, year, all, custom }
 
+bool canFilterSalesBySeller({required String role}) {
+  return role == 'admin';
+}
+
 class _SalesPageState extends State<SalesPage> {
   final FirestoreService _firestoreService = FirestoreService();
   DateFilter _selectedFilter = DateFilter.all;
@@ -28,12 +32,14 @@ class _SalesPageState extends State<SalesPage> {
   String? _filterCustomerId;
   String? _filterCustomerName;
   String? _filterSellerId;
+  bool? _deliveredFilter;
   final TextEditingController _searchController = TextEditingController();
 
   @override
   void initState() {
     super.initState();
     _filterSellerId = widget.sellerId;
+    _deliveredFilter = null;
     _updateDateRange();
   }
 
@@ -162,6 +168,7 @@ class _SalesPageState extends State<SalesPage> {
           startDate: _startDate, 
           endDate: _endDate,
           customerId: _filterCustomerId,
+          delivered: _deliveredFilter,
         ),
         builder: (context, snapshot) {
           if (snapshot.hasError) {
@@ -175,9 +182,9 @@ class _SalesPageState extends State<SalesPage> {
                     children: [
                       const Icon(Icons.warning_amber_rounded, color: Colors.orange, size: 48),
                       const SizedBox(height: 16),
-                      const Text('Falta un índice en Firebase', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                      Text(l10n.get('firebaseIndexMissing'), style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
                       const SizedBox(height: 8),
-                      const Text('Selecciona y copia el siguiente enlace para crearlo:', textAlign: TextAlign.center),
+                      Text(l10n.get('firebaseIndexInstructions'), textAlign: TextAlign.center),
                       const SizedBox(height: 16),
                       SelectableText(
                         error,
@@ -325,9 +332,11 @@ class _SalesPageState extends State<SalesPage> {
   }
 
   Widget _buildFilterButton(AppLocalizations l10n) {
+    final bool canFilterBySeller = canFilterSalesBySeller(role: widget.role);
     bool hasActiveFilters = _filterCustomerId != null || 
-                           _filterSellerId != widget.sellerId || 
-                           _selectedFilter != DateFilter.all;
+                 _filterSellerId != widget.sellerId || 
+                 _selectedFilter != DateFilter.all ||
+                 _deliveredFilter != null;
     return PopupMenuButton<String>(
       icon: Icon(Icons.filter_list, color: hasActiveFilters ? Colors.orange : null),
       onSelected: _handleFilterSelection,
@@ -339,9 +348,11 @@ class _SalesPageState extends State<SalesPage> {
         PopupMenuItem(value: 'custom', child: Text(l10n.get('filterCustomEllipsis'))),
         const PopupMenuDivider(),
         PopupMenuItem(value: 'customer', child: Text(l10n.get('selectCustomer'))),
+            PopupMenuItem(value: 'delivered', child: Text(l10n.get('delivered'))),
+            PopupMenuItem(value: 'pending', child: Text(l10n.get('pendingDelivery'))),
         const PopupMenuDivider(),
         PopupMenuItem(value: 'clear', child: Text(l10n.get('filterAll'))),
-        if (widget.user.uid == widget.businessId) ...[
+        if (canFilterBySeller) ...[
           const PopupMenuDivider(),
           PopupMenuItem(value: 'seller', child: Text(l10n.get('filterBySeller'))),
         ]
@@ -374,8 +385,15 @@ class _SalesPageState extends State<SalesPage> {
         _showCustomerFilterDialog();
         break;
       case 'seller':
+        if (!canFilterSalesBySeller(role: widget.role)) return;
         _showSellerFilterDialog();
         break;
+          case 'delivered':
+            setState(() => _deliveredFilter = true);
+            break;
+          case 'pending':
+            setState(() => _deliveredFilter = false);
+            break;
       case 'clear':
         setState(() {
           _selectedFilter = DateFilter.all;
@@ -384,6 +402,7 @@ class _SalesPageState extends State<SalesPage> {
           _filterCustomerName = null;
           _searchController.clear();
           _filterSellerId = widget.user.uid == widget.businessId ? null : widget.sellerId;
+              _deliveredFilter = null;
         });
         break;
     }
@@ -408,6 +427,8 @@ class _SalesPageState extends State<SalesPage> {
   }
 
   void _showSellerFilterDialog() {
+    if (!canFilterSalesBySeller(role: widget.role)) return;
+
     final l10n = AppLocalizations.of(context);
     showDialog(
       context: context,
@@ -586,6 +607,21 @@ class _SaleListItem extends StatelessWidget {
                         borderRadius: BorderRadius.circular(8),
                       ),
                       child: Text(l10n.get('delivered').toUpperCase(), style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: Colors.blueGrey.shade700)),
+                    ),
+                  )
+                else
+                  Padding(
+                    padding: const EdgeInsets.only(top: 4.0),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: Colors.red.shade50,
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Text(
+                        l10n.get('pendingDelivery').toUpperCase(),
+                        style: const TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: Colors.red),
+                      ),
                     ),
                   ),
                 if (saleData['note'] != null && saleData['note'].toString().isNotEmpty)

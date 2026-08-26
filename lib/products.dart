@@ -771,6 +771,7 @@ class ProductList extends StatelessWidget {
 
     return ListView.builder(
       padding: const EdgeInsets.only(bottom: 100),
+      key: const PageStorageKey('products_list'),
       itemCount: sortedGroupKeys.length,
       itemBuilder: (context, index) {
         final key = sortedGroupKeys[index];
@@ -813,6 +814,7 @@ class ProductList extends StatelessWidget {
   ListView _buildProductListView(BuildContext context, List<DocumentSnapshot> products, Map<String, String> categoryMap) {
     return ListView.separated(
       padding: const EdgeInsets.only(bottom: 100),
+      key: const PageStorageKey('products_list'),
       itemCount: products.length,
       separatorBuilder: (context, index) => const Divider(height: 1, indent: 16, endIndent: 16),
       itemBuilder: (context, index) => _buildProductItem(context, products[index], categoryMap, products),

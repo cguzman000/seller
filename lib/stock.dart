@@ -40,6 +40,7 @@ class _StockPageState extends ConsumerState<StockPage> {
   String _searchTerm = '';
   String? _selectedSupplierId;
   bool _isScanning = false;
+  bool _onlyLowStock = false;
 
   @override
   void dispose() {
@@ -164,6 +165,7 @@ class _StockPageState extends ConsumerState<StockPage> {
               },
             ),
           ),
+            
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(context),
@@ -221,7 +223,7 @@ class _StockPageState extends ConsumerState<StockPage> {
                 PopupMenuButton<String>(
                   icon: Icon(
                     Icons.filter_list,
-                    color: _selectedSupplierId != null ? Theme.of(context).colorScheme.primary : Colors.black,
+                    color: (_selectedSupplierId != null || _onlyLowStock) ? Theme.of(context).colorScheme.primary : Colors.black,
                   ),
                   tooltip: l10n.get('filterProducts'),
                   onSelected: (value) {
@@ -236,11 +238,17 @@ class _StockPageState extends ConsumerState<StockPage> {
                     } else if (value == 'clear') {
                       setState(() {
                         _selectedSupplierId = null;
+                        _onlyLowStock = false;
+                      });
+                    } else if (value == 'lowstock') {
+                      setState(() {
+                        _onlyLowStock = !_onlyLowStock;
                       });
                     }
                   },
                   itemBuilder: (context) => [
                     PopupMenuItem(value: 'supplier', child: Text(l10n.get('bySupplier'))),
+                    PopupMenuItem(value: 'lowstock', child: Text(l10n.get('lowStock'))),
                     const PopupMenuDivider(),
                     PopupMenuItem(value: 'clear', child: Text(l10n.get('viewAll'))),
                   ],
@@ -286,6 +294,58 @@ class _StockPageState extends ConsumerState<StockPage> {
                   final data = doc.data() as Map<String, dynamic>;
                   return (data['name'] as String?) ?? '';
                 });
+
+                // Contadores para chips (antes de aplicar el filtro de bajo stock)
+                final productsBeforeLowFilter = List<DocumentSnapshot>.from(products);
+                int lowStockCount = 0;
+                for (final doc in productsBeforeLowFilter) {
+                  final data = doc.data() as Map<String, dynamic>;
+                  final stock = (data['stock'] as num?)?.toDouble() ?? 0.0;
+                  final safetyStock = (data['safety_stock'] as num?)?.toDouble() ?? 0.0;
+                  if (stock <= safetyStock) lowStockCount++;
+                }
+
+                // Mostrar chips con contadores
+                if (_selectedSupplierId != null || _onlyLowStock) {
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+                    child: Wrap(
+                      spacing: 8,
+                      runSpacing: 6,
+                      children: [
+                        if (_selectedSupplierId != null)
+                          FutureBuilder<DocumentSnapshot>(
+                            future: FirebaseFirestore.instance.collection('suppliers').doc(_selectedSupplierId).get(),
+                            builder: (context, snapshot) {
+                              String label = _selectedSupplierId ?? '';
+                              if (snapshot.hasData && snapshot.data!.data() != null) {
+                                final data = snapshot.data!.data() as Map<String, dynamic>;
+                                label = data['name'] ?? label;
+                              }
+                              return InputChip(
+                                label: Text('${l10n.get('bySupplier')}: $label (${productsBeforeLowFilter.length})'),
+                                onDeleted: () => setState(() => _selectedSupplierId = null),
+                              );
+                            },
+                          ),
+                        InputChip(
+                          label: Text('${l10n.get('lowStock')} ($lowStockCount)'),
+                          onDeleted: () => setState(() => _onlyLowStock = false),
+                        ),
+                      ],
+                    ),
+                  );
+                }
+
+                // Filtrar solo productos con stock bajo si está activado
+                if (_onlyLowStock) {
+                  products = products.where((doc) {
+                    final data = doc.data() as Map<String, dynamic>;
+                    final stock = (data['stock'] as num?)?.toDouble() ?? 0.0;
+                    final safetyStock = (data['safety_stock'] as num?)?.toDouble() ?? 0.0;
+                    return stock <= safetyStock;
+                  }).toList();
+                }
 
                 if (products.isEmpty) {
                   return Center(child: Text(l10n.get('noProductsFound')));

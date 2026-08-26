@@ -120,10 +120,10 @@ class _PaymentsPageState extends State<PaymentsPage> {
                     children: [
                       const Icon(Icons.warning_amber_rounded, color: Colors.orange, size: 48),
                       const SizedBox(height: 16),
-                      const Text('Falta un índice en Firebase',
-                          style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                      Text(l10n.get('firebaseIndexMissing'),
+                          style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
                       const SizedBox(height: 8),
-                      const Text('Selecciona y copia el siguiente enlace para crearlo:', textAlign: TextAlign.center),
+                      Text(l10n.get('firebaseIndexInstructions'), textAlign: TextAlign.center),
                       const SizedBox(height: 16),
                       SelectableText(
                         error,
@@ -352,7 +352,7 @@ class _PaymentsPageState extends State<PaymentsPage> {
         PopupMenuItem(value: 'method', child: Text(l10n.get('paymentMethod'))),
         const PopupMenuDivider(),
         PopupMenuItem(value: 'clear', child: Text(l10n.get('filterAll'))),
-        if (widget.user.uid == widget.businessId) ...[
+        if (widget.role == 'admin') ...[
           const PopupMenuDivider(),
           PopupMenuItem(value: 'seller', child: Text(l10n.get('filterBySeller'))),
         ]
@@ -386,7 +386,7 @@ class _PaymentsPageState extends State<PaymentsPage> {
         setState(() {
           _startDate = null;
           _endDate = null;
-          _filterSellerId = widget.user.uid == widget.businessId ? null : widget.user.uid;
+          _filterSellerId = widget.role == 'admin' ? null : (widget.sellerId ?? widget.user.uid);
           _filterPaymentType = null;
           _filterCustomerId = null;
           _searchController.clear();
@@ -660,7 +660,7 @@ class _PaymentsPageState extends State<PaymentsPage> {
                           final date = (data['saleDate'] as Timestamp?)?.toDate() ?? DateTime.now();
                           
                           return CheckboxListTile(
-                            title: Text('Venta #${data['sale_number'] ?? 'S/N'}'),
+                            title: Text('${l10n.get('saleNumber')}${data['sale_number'] ?? 'S/N'}'),
                             subtitle: Text('${DateFormat('dd/MM/yyyy').format(date)} - Pend: \$${item.pendingAmount.toStringAsFixed(2)}'),
                             value: selectedSales[item.doc.id] ?? false,
                             onChanged: (val) {

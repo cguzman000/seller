@@ -8,16 +8,15 @@ import 'main.dart'; // Importar para usar SellerBottomNavigationBar
 import 'util/text_formatter.dart';
 import 'app_localizations.dart';
 import 'pdf_generator.dart';
+import 'money_format.dart';
 import 'dart:typed_data';
 import 'package:flutter/rendering.dart';
 import 'dart:ui' as ui;
 
 // Formateadores globales para los reportes
-final NumberFormat currencyFormat = NumberFormat.currency(
+final NumberFormat currencyFormat = NumberFormat.decimalPatternDigits(
   locale: 'es_AR',
-  symbol: '\$',
-  decimalDigits: 0,
-  customPattern: '\u00A4 #,##0',
+  decimalDigits: 2,
 );
 final DateFormat dateFormat = DateFormat('dd/MM/yyyy');
 final DateFormat dateTimeFormat = DateFormat('dd/MM/yyyy HH:mm');
@@ -39,8 +38,9 @@ class SalesByProductReportPage extends StatefulWidget {
   final String businessId;
   final String? sellerId;
   final User user;
+  final String role;
 
-  const SalesByProductReportPage({super.key, required this.businessId, this.sellerId, required this.user});
+  const SalesByProductReportPage({super.key, required this.businessId, this.sellerId, required this.user, this.role = ''});
 
   @override
   State<SalesByProductReportPage> createState() => _SalesByProductReportPageState();
@@ -298,6 +298,7 @@ class _SalesByProductReportPageState extends State<SalesByProductReportPage> {
         user: widget.user,
         businessId: widget.businessId,
         sellerId: widget.sellerId ?? (widget.user.uid == widget.businessId ? null : widget.user.uid),
+        role: widget.role,
         currentIndex: 3, // Productos
         allowSamePageNavigation: true,
       ),
@@ -312,8 +313,9 @@ class CustomerRankingPage extends StatefulWidget {
   final String businessId;
   final String? sellerId;
   final User user;
+  final String role;
 
-  const CustomerRankingPage({super.key, required this.businessId, this.sellerId, required this.user});
+  const CustomerRankingPage({super.key, required this.businessId, this.sellerId, required this.user, this.role = ''});
 
   @override
   State<CustomerRankingPage> createState() => _CustomerRankingPageState();
@@ -440,6 +442,7 @@ class _CustomerRankingPageState extends State<CustomerRankingPage> {
         user: widget.user,
         businessId: widget.businessId,
         sellerId: widget.sellerId ?? (widget.user.uid == widget.businessId ? null : widget.user.uid),
+        role: widget.role,
         currentIndex: 2, // Clientes
         allowSamePageNavigation: true,
       ),
@@ -641,8 +644,9 @@ class AccountsReceivablePage extends StatefulWidget {
   final String businessId;
   final String? sellerId;
   final User user;
+  final String role;
 
-  const AccountsReceivablePage({super.key, required this.businessId, this.sellerId, required this.user});
+  const AccountsReceivablePage({super.key, required this.businessId, this.sellerId, required this.user, this.role = ''});
 
   @override
   State<AccountsReceivablePage> createState() => _AccountsReceivablePageState();
@@ -766,8 +770,10 @@ class _AccountsReceivablePageState extends State<AccountsReceivablePage> {
               Map<String, double> paidPerSale = {};
               for (var p in payments) {
                 final data = p.data() as Map<String, dynamic>;
-                final saleId = data['saleId'] as String;
-                final amount = (data['amount'] as num).toDouble();
+                final saleId = data['saleId'] as String?;
+                if (saleId == null || saleId.isEmpty) continue;
+
+                final amount = (data['amount'] as num? ?? 0).toDouble();
                 paidPerSale[saleId] = (paidPerSale[saleId] ?? 0) + amount;
               }
 
@@ -777,15 +783,17 @@ class _AccountsReceivablePageState extends State<AccountsReceivablePage> {
               for (var s in sales) {
                 final data = s.data() as Map<String, dynamic>;
                 final saleId = s.id;
-                final total = (data['totalAmount'] as num).toDouble();
+                final total = (data['totalAmount'] as num? ?? 0).toDouble();
                 final paid = paidPerSale[saleId] ?? 0;
                 final debt = total - paid;
 
                 // Tolerancia para errores de punto flotante
-                if (debt > 1.0) { 
-                  final customerId = data['customerId'] as String;
-                  final customerName = data['customerName'] as String;
-                  
+                if (debt > 1.0) {
+                  final customerId = data['customerId'] as String?;
+                  if (customerId == null || customerId.isEmpty) continue;
+
+                  final customerName = (data['customerName'] as String?) ?? 'Sin nombre';
+
                   if (!customerDebt.containsKey(customerId)) {
                     customerDebt[customerId] = {'name': customerName, 'debt': 0.0, 'count': 0};
                   }
@@ -866,6 +874,7 @@ class _AccountsReceivablePageState extends State<AccountsReceivablePage> {
         user: widget.user,
         businessId: widget.businessId,
         sellerId: widget.sellerId ?? (widget.user.uid == widget.businessId ? null : widget.user.uid),
+        role: widget.role,
         currentIndex: 1, // Pagos / Dinero
         allowSamePageNavigation: true,
       ),
@@ -879,9 +888,10 @@ class _AccountsReceivablePageState extends State<AccountsReceivablePage> {
 class StockReportPage extends StatelessWidget {
   final String businessId;
   final User user;
+  final String role;
   final FirestoreService _service = FirestoreService();
 
-  StockReportPage({super.key, required this.businessId, required this.user});
+  StockReportPage({super.key, required this.businessId, required this.user, this.role = ''});
 
   @override
   Widget build(BuildContext context) {
@@ -969,6 +979,7 @@ class StockReportPage extends StatelessWidget {
         user: user,
         businessId: businessId,
         sellerId: user.uid == businessId ? null : user.uid,
+        role: role,
         currentIndex: 5, // Stock
         allowSamePageNavigation: true,
       ),
@@ -982,8 +993,9 @@ class StockReportPage extends StatelessWidget {
 class SellerPerformancePage extends StatefulWidget {
   final String businessId;
   final User user;
+  final String role;
 
-  const SellerPerformancePage({super.key, required this.businessId, required this.user});
+  const SellerPerformancePage({super.key, required this.businessId, required this.user, this.role = ''});
 
   @override
   State<SellerPerformancePage> createState() => _SellerPerformancePageState();
@@ -1107,6 +1119,7 @@ class _SellerPerformancePageState extends State<SellerPerformancePage> {
         user: widget.user,
         businessId: widget.businessId,
         sellerId: widget.user.uid == widget.businessId ? null : widget.user.uid,
+        role: widget.role,
         currentIndex: 0, // General
         allowSamePageNavigation: true,
       ),
@@ -1121,8 +1134,9 @@ class CashFlowReportPage extends StatefulWidget {
   final String businessId;
   final String? sellerId;
   final User user;
+  final String role;
 
-  const CashFlowReportPage({super.key, required this.businessId, this.sellerId, required this.user});
+  const CashFlowReportPage({super.key, required this.businessId, this.sellerId, required this.user, this.role = ''});
 
   @override
   State<CashFlowReportPage> createState() => _CashFlowReportPageState();
@@ -1243,7 +1257,8 @@ class _CashFlowReportPageState extends State<CashFlowReportPage> {
         user: widget.user,
         businessId: widget.businessId,
         sellerId: widget.sellerId ?? (widget.user.uid == widget.businessId ? null : widget.user.uid),
-        currentIndex: 0, 
+        role: widget.role,
+        currentIndex: 0,
         allowSamePageNavigation: true,
       ),
     );
@@ -1276,8 +1291,9 @@ class SalesAndPaymentsReportPage extends StatefulWidget {
   final String businessId;
   final String? sellerId;
   final User user;
+  final String role;
 
-  const SalesAndPaymentsReportPage({super.key, required this.businessId, this.sellerId, required this.user});
+  const SalesAndPaymentsReportPage({super.key, required this.businessId, this.sellerId, required this.user, this.role = ''});
 
   @override
   State<SalesAndPaymentsReportPage> createState() => _SalesAndPaymentsReportPageState();

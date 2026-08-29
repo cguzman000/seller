@@ -6,6 +6,8 @@ import 'package:seller/main.dart';
 import 'app_localizations.dart';
 import 'firestore_service.dart';
 import 'add_sale_page.dart';
+import 'money_format.dart';
+import 'money_format.dart';
 
 class SalesPage extends StatefulWidget {
   final User user;
@@ -33,6 +35,7 @@ class _SalesPageState extends State<SalesPage> {
   String? _filterCustomerName;
   String? _filterSellerId;
   bool? _deliveredFilter;
+  int _decimalPlaces = 2;
   final TextEditingController _searchController = TextEditingController();
 
   @override
@@ -40,7 +43,17 @@ class _SalesPageState extends State<SalesPage> {
     super.initState();
     _filterSellerId = widget.sellerId;
     _deliveredFilter = null;
+    _loadDecimalPlaces();
     _updateDateRange();
+  }
+
+  Future<void> _loadDecimalPlaces() async {
+    final settingsDoc = await _firestoreService.getCompanySettingsOnce(widget.businessId);
+    final data = settingsDoc.data() as Map<String, dynamic>? ?? {};
+    if (!mounted) return;
+    setState(() {
+      _decimalPlaces = (data['decimal_places'] as num?)?.toInt() ?? 2;
+    });
   }
 
   @override
@@ -258,7 +271,7 @@ class _SalesPageState extends State<SalesPage> {
                               ),
                         ),
                         Text(
-                          NumberFormat.currency(locale: 'es_CL', symbol: '\$', decimalDigits: 0, customPattern: '\u00A4 #,##0').format(monthTotal),
+                          formatArgentineMoney(monthTotal, decimalPlaces: _decimalPlaces),
                           style: TextStyle(
                                 fontSize: 16,//TAMAñO DE LETRA DEL TOTAL DEL MES
                                 fontWeight: FontWeight.bold,
@@ -283,7 +296,15 @@ class _SalesPageState extends State<SalesPage> {
                             alignment: Alignment.centerRight,
                             padding: const EdgeInsets.symmetric(horizontal: 20.0),
                             child: const Icon(Icons.delete, color: Colors.white)),
-                        child: _SaleListItem(firestoreService: _firestoreService, user: widget.user, sale: sale, businessId: widget.businessId, role: widget.role, sellerId: widget.sellerId),
+                        child: _SaleListItem(
+                          firestoreService: _firestoreService,
+                          user: widget.user,
+                          sale: sale,
+                          businessId: widget.businessId,
+                          role: widget.role,
+                          sellerId: widget.sellerId,
+                          decimalPlaces: _decimalPlaces,
+                        ),
                       );
 
                       return Column(
@@ -517,6 +538,7 @@ class _SaleListItem extends StatelessWidget {
   final String businessId;
   final String role;
   final String? sellerId;
+  final int decimalPlaces;
 
   const _SaleListItem({
     required this.firestoreService,
@@ -525,6 +547,7 @@ class _SaleListItem extends StatelessWidget {
     required this.businessId,
     required this.role,
     this.sellerId,
+    this.decimalPlaces = 2,
   });
 
   @override
@@ -640,29 +663,71 @@ class _SaleListItem extends StatelessWidget {
               mainAxisSize: MainAxisSize.min,
               children: [
                 if (balance <= 0.01)
-                  const Padding(
-                    padding: EdgeInsets.only(right: 8.0),
-                    child: Icon(Icons.check_circle, color: Colors.green),
-                  ),
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.end,
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Text(
-                      '\$${totalAmount.toStringAsFixed(0)}',
-                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
-                    ),
-                    Text(
-                      '${l10n.get('paidLabel')}: \$${paidAmount.toStringAsFixed(0)}',
-                      style: const TextStyle(color: Colors.green, fontSize: 12),
-                    ),
-                    if (balance > 0.01)
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
                       Text(
-                        '${l10n.get('balanceLabel')}: \$${balance.toStringAsFixed(0)}',
-                        style: const TextStyle(color: Colors.orange, fontWeight: FontWeight.bold, fontSize: 12),
+                        formatArgentineMoney(totalAmount, decimalPlaces: decimalPlaces),
+                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
                       ),
-                  ],
-                ),
+                      const SizedBox(height: 2),
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(Icons.check_circle, color: Colors.green, size: 14),
+                          const SizedBox(width: 4),
+                          Text(
+                            l10n.get('paidLabel'),
+                            style: const TextStyle(color: Colors.green, fontWeight: FontWeight.bold, fontSize: 12),
+                          ),
+                        ],
+                      ),
+                    ],
+                  )
+                else if (paidAmount <= 0.01)
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Text(
+                        formatArgentineMoney(totalAmount, decimalPlaces: decimalPlaces),
+                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                      ),
+                      const SizedBox(height: 2),
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(Icons.cancel, color: Colors.red, size: 14),
+                          const SizedBox(width: 4),
+                          const Text(
+                            'Sin Pagar',
+                            style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold, fontSize: 12),
+                          ),
+                        ],
+                      ),
+                    ],
+                  )
+                else
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Text(
+                        formatArgentineMoney(totalAmount, decimalPlaces: decimalPlaces),
+                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                      ),
+                      Text(
+                        '${l10n.get('paidLabel')}: ${formatArgentineMoney(paidAmount, decimalPlaces: decimalPlaces)}',
+                        style: const TextStyle(color: Colors.green, fontSize: 12),
+                      ),
+                      if (balance > 0.01)
+                        Text(
+                          '${l10n.get('balanceLabel')}: ${formatArgentineMoney(balance, decimalPlaces: decimalPlaces)}',
+                          style: const TextStyle(color: Colors.orange, fontWeight: FontWeight.bold, fontSize: 12),
+                        ),
+                    ],
+                  ),
               ],
             ),
           ),

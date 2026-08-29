@@ -26,6 +26,7 @@ import 'offers.dart';
 import 'detailed_reports.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'app_localizations.dart';
+import 'money_format.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -121,7 +122,7 @@ class _SellerBottomNavigationBarState extends State<SellerBottomNavigationBar> {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     final colorScheme = Theme.of(context).colorScheme;
-    final bool isAdmin = widget.role == 'admin';
+    final bool isAdmin = widget.role == 'admin' || widget.user.uid == widget.businessId;
     final Color roleColor = isAdmin ? colorScheme.primary : Colors.orange;
     final Color unselectedColor = colorScheme.onSurfaceVariant;
 
@@ -258,33 +259,33 @@ class ReportsHubPage extends StatelessWidget {
           ListTile(
             leading: const Icon(Icons.pie_chart),
             title: Text(l10n.get('salesByProduct')),
-            onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => SalesByProductReportPage(businessId: businessId, sellerId: sellerId, user: user))),
+            onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => SalesByProductReportPage(businessId: businessId, sellerId: sellerId, user: user, role: role))),
           ),
           ListTile(
             leading: const Icon(Icons.summarize),
             title: Text(l10n.get('salesAndPaymentsReport')),
-            onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => SalesAndPaymentsReportPage(businessId: businessId, sellerId: sellerId, user: user))),
+            onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => SalesAndPaymentsReportPage(businessId: businessId, sellerId: sellerId, user: user, role: role))),
           ),
           ListTile(
             leading: const Icon(Icons.star),
             title: Text(l10n.get('customerRanking')),
-            onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => CustomerRankingPage(businessId: businessId, sellerId: sellerId, user: user))),
+            onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => CustomerRankingPage(businessId: businessId, sellerId: sellerId, user: user, role: role))),
           ),
           ListTile(
             leading: const Icon(Icons.money_off),
             title: Text(l10n.get('accountsReceivable')),
-            onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => AccountsReceivablePage(businessId: businessId, sellerId: sellerId, user: user))),
+            onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => AccountsReceivablePage(businessId: businessId, sellerId: sellerId, user: user, role: role))),
           ),
           ListTile(
             leading: const Icon(Icons.inventory),
             title: Text(l10n.get('stockReport')),
-            onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => StockReportPage(businessId: businessId, user: user))),
+            onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => StockReportPage(businessId: businessId, user: user, role: role))),
           ),
           if (role == 'admin')
             ListTile(
               leading: const Icon(Icons.badge),
               title: Text(l10n.get('sellerPerformance')),
-              onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => SellerPerformancePage(businessId: businessId, user: user))),
+              onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => SellerPerformancePage(businessId: businessId, user: user, role: role))),
             ),
         ],
       ),
@@ -1336,7 +1337,7 @@ class _MyHomePageState extends State<MyHomePage> {
         }
         return _buildSummaryCard(
           title: l10n.get('todaySales'),
-          value: '\$${NumberFormat.currency(locale: 'es_AR', symbol: '', decimalDigits: 0).format(todayTotal).trim()}',
+          value: formatArgentineMoney(todayTotal),
           icon: Icons.today,
           color: Colors.blueAccent,
         );
@@ -1376,7 +1377,7 @@ class _MyHomePageState extends State<MyHomePage> {
             }
           }
         }
-        final formattedSales = '\$${NumberFormat.currency(locale: 'es_AR', symbol: '', decimalDigits: 0).format(monthlySales).trim()}';
+        final formattedSales = formatArgentineMoney(monthlySales);
         return _buildSummaryCard(title: l10n.get('monthlySales'), value: formattedSales, icon: Icons.trending_up, color: Colors.green);
       },
     );
@@ -1417,7 +1418,7 @@ class _MyHomePageState extends State<MyHomePage> {
             }
             return _buildSummaryCard(
               title: l10n.get('totalDebt'),
-              value: '\$${NumberFormat.currency(locale: 'es_AR', symbol: '', decimalDigits: 0).format(totalDebt).trim()}',
+              value: formatArgentineMoney(totalDebt),
               icon: Icons.money_off,
               color: Colors.orange,
             );
@@ -1601,7 +1602,7 @@ class _MyHomePageState extends State<MyHomePage> {
                 leading: const Icon(Icons.receipt, color: Colors.blue),
                 title: Text(customerName),
                 subtitle: Text(DateFormat('dd/MM/yyyy HH:mm').format(saleDate)),
-                trailing: Text('\$${NumberFormat.currency(locale: 'es_AR', symbol: '', decimalDigits: 0).format(totalAmount).trim()}', style: const TextStyle(fontWeight: FontWeight.bold)),
+                trailing: Text(formatArgentineMoney(totalAmount.toDouble()), style: const TextStyle(fontWeight: FontWeight.bold)),
               ),
             );
           },

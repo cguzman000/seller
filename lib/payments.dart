@@ -5,6 +5,7 @@ import 'package:intl/intl.dart';
 import 'firestore_service.dart';
 import 'main.dart'; // Para SellerBottomNavigationBar
 import 'app_localizations.dart';
+import 'money_format.dart';
 
 class PaymentsPage extends StatefulWidget {
   final User user;
@@ -196,7 +197,7 @@ class _PaymentsPageState extends State<PaymentsPage> {
                               ),
                         ),
                         Text(
-                          NumberFormat.currency(locale: 'es_AR', symbol: '\$', decimalDigits: 0, customPattern: '\u00A4 #,##0').format(monthTotal),
+                          formatArgentineMoney(monthTotal),
                           style: TextStyle(
                                 fontSize: 16,
                                 fontWeight: FontWeight.bold,
@@ -291,7 +292,7 @@ class _PaymentsPageState extends State<PaymentsPage> {
                           children: [
                             Icon(paymentIcon, color: paymentIconColor),
                             Text(
-                              '\$${NumberFormat.currency(locale: 'es_AR', symbol: '', decimalDigits: 0).format(amount)}',
+                              formatArgentineMoney(amount),
                               style: const TextStyle(
                                 fontWeight: FontWeight.bold,
                                 fontSize: 14,
@@ -592,6 +593,12 @@ class _PaymentsPageState extends State<PaymentsPage> {
     }
   }
 
+  Future<int> _getDecimalPlaces() async {
+    final settingsDoc = await _firestoreService.getCompanySettingsOnce(widget.businessId);
+    final data = settingsDoc.data() as Map<String, dynamic>? ?? {};
+    return (data['decimal_places'] as num?)?.toInt() ?? 0;
+  }
+
   /// Obtiene todas las ventas con saldo pendiente para un cliente
   Future<List<_PendingSale>> _fetchPendingSales(String customerId) async {
     final salesSnapshot = await _firestoreService.getSalesForCustomer(
@@ -635,6 +642,7 @@ class _PaymentsPageState extends State<PaymentsPage> {
     final l10n = AppLocalizations.of(context);
     final selectedSales = <String, bool>{};
     double totalSelected = 0.0;
+    final decimalPlaces = await _getDecimalPlaces();
 
     await showDialog(
       context: context,
@@ -648,7 +656,10 @@ class _PaymentsPageState extends State<PaymentsPage> {
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Text('Total Seleccionado: \$${totalSelected.toStringAsFixed(2)}', style: const TextStyle(fontWeight: FontWeight.bold)),
+                    Text(
+                      'Total Seleccionado: ${formatArgentineMoney(totalSelected, decimalPlaces: decimalPlaces)}',
+                      style: const TextStyle(fontWeight: FontWeight.bold),
+                    ),
                     const Divider(),
                     Expanded(
                       child: ListView.builder(
@@ -658,10 +669,16 @@ class _PaymentsPageState extends State<PaymentsPage> {
                           final item = pendingSales[index];
                           final data = item.doc.data() as Map<String, dynamic>;
                           final date = (data['saleDate'] as Timestamp?)?.toDate() ?? DateTime.now();
-                          
+
                           return CheckboxListTile(
                             title: Text('${l10n.get('saleNumber')}${data['sale_number'] ?? 'S/N'}'),
-                            subtitle: Text('${DateFormat('dd/MM/yyyy').format(date)} - Pend: \$${item.pendingAmount.toStringAsFixed(2)}'),
+                            subtitle: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(DateFormat('dd/MM/yyyy').format(date)),
+                                Text('Pend: ${formatArgentineMoney(item.pendingAmount, decimalPlaces: decimalPlaces)}'),
+                              ],
+                            ),
                             value: selectedSales[item.doc.id] ?? false,
                             onChanged: (val) {
                               setState(() {
@@ -701,6 +718,7 @@ class _PaymentsPageState extends State<PaymentsPage> {
   Future<void> _showGlobalPaymentDialog(DocumentSnapshot customerDoc, List<_PendingSale> pendingSales) async {
     final l10n = AppLocalizations.of(context);
     final totalDebt = pendingSales.fold(0.0, (prev, s) => prev + s.pendingAmount);
+    final decimalPlaces = await _getDecimalPlaces();
     final controller = TextEditingController();
 
     await showDialog(
@@ -710,7 +728,10 @@ class _PaymentsPageState extends State<PaymentsPage> {
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Text('${l10n.get('totalPending')}: \$${totalDebt.toStringAsFixed(2)}', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+            Text(
+              '${l10n.get('totalPending')}: ${formatArgentineMoney(totalDebt, decimalPlaces: decimalPlaces)}',
+              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+            ),
             const SizedBox(height: 16),
             TextField(
               controller: controller,
@@ -745,6 +766,7 @@ class _PaymentsPageState extends State<PaymentsPage> {
 
   Future<void> _showFinalizePaymentDialog(DocumentSnapshot customerDoc, double amount, List<DocumentSnapshot> salesToPay) async {
     final l10n = AppLocalizations.of(context);
+    final decimalPlaces = await _getDecimalPlaces();
     String paymentType = 'Efectivo';
 
     await showDialog(
@@ -758,7 +780,10 @@ class _PaymentsPageState extends State<PaymentsPage> {
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text('${l10n.get('amountToPay')}: \$${amount.toStringAsFixed(2)}', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                  Text(
+                    '${l10n.get('amountToPay')}: ${formatArgentineMoney(amount, decimalPlaces: decimalPlaces)}',
+                    style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                  ),
                   const SizedBox(height: 16),
                   Text(l10n.get('paymentMethod'), style: const TextStyle(fontWeight: FontWeight.bold)),
                   RadioGroup<String>(

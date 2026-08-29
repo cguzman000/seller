@@ -10,6 +10,7 @@ import 'package:seller/pdf_generator.dart';
 import 'package:seller/company_settings_provider.dart';
 import 'package:seller/main.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
+import 'money_format.dart';
 
 class OffersPage extends StatefulWidget {
   final User user;
@@ -33,6 +34,26 @@ class _OffersPageState extends State<OffersPage> {
   final TextEditingController _searchController = TextEditingController();
   String _searchTerm = '';
   bool _isScanning = false;
+  int _decimalPlaces = 2;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadCompanySettings();
+  }
+
+  Future<void> _loadCompanySettings() async {
+    final settingsDoc = await _firestoreService.getCompanySettingsOnce(widget.businessId);
+    if (settingsDoc.exists) {
+      final settingsData = settingsDoc.data() as Map<String, dynamic>? ?? {};
+      final decimalPlaces = (settingsData['decimal_places'] as num? ?? 2).toInt();
+      if (mounted) {
+        setState(() {
+          _decimalPlaces = decimalPlaces;
+        });
+      }
+    }
+  }
 
   @override
   void dispose() {
@@ -158,6 +179,7 @@ class _OffersPageState extends State<OffersPage> {
       // Extraemos los datos cuando estén disponibles
       final settingsData = settingsAsyncValue.asData?.value.data() as Map<String, dynamic>?;
       final vatRate = (settingsData?['vat_rate'] as num? ?? 21.0) / 100.0;
+      final decimalPlaces = (settingsData?['decimal_places'] as num? ?? _decimalPlaces).toInt();
 
       return Scaffold(
       appBar: AppBar(
@@ -303,7 +325,7 @@ class _OffersPageState extends State<OffersPage> {
                                   leading: const Icon(Icons.local_offer, color: Colors.orange),
                                   title: Text(offerData['name'] ?? 'Oferta'),
                                   subtitle: Text(
-                                    'Cant. Mínima: ${offerData['quantity']} unid. \nPrecio: \$${grossPrice.toStringAsFixed(2)} (Neto: \$${netPrice.toStringAsFixed(2)})',
+                                    'Cant. Mínima: ${offerData['quantity']} unid. \nPrecio: ${formatArgentineMoney(grossPrice, decimalPlaces: decimalPlaces)} (Neto: ${formatArgentineMoney(netPrice, decimalPlaces: decimalPlaces)})',
                                   ),
                                   isThreeLine: true,
                                   onTap: () => _showOfferDialog(offerDoc, products), // Pass all products for autocomplete in dialog
@@ -423,11 +445,13 @@ class _OfferDialogState extends State<OfferDialog> {
   String? _selectedProductName;
   bool _offerPriceIncludesVat = false;
   bool _isScanningProductInOfferDialog = false; // Nuevo estado para el escáner de producto en el diálogo de ofertas
+  int _decimalPlaces = 2;
 
   @override
   void initState() {
     super.initState();
     _productSearchController = TextEditingController();
+    _loadCompanySettings();
     if (widget.offer != null) {
       final data = widget.offer!.data() as Map<String, dynamic>;
       _nameController.text = data['name'] ?? '';
@@ -436,10 +460,19 @@ class _OfferDialogState extends State<OfferDialog> {
       // El precio guardado es neto, y el checkbox de IVA incluido está desactivado por defecto,
       // por lo que mostramos el precio neto formateado.
       final netPrice = (data['price'] as num?)?.toDouble() ?? 0.0;
-      _priceController.text = netPrice.toStringAsFixed(2);
+      _priceController.text = netPrice.toStringAsFixed(_decimalPlaces);
       _selectedProductId = data['productId'];
       // Cargar el nombre del producto para mostrarlo en el campo de búsqueda
       _loadProductName(_selectedProductId!);
+    }
+  }
+
+  Future<void> _loadCompanySettings() async {
+    final settingsDoc = await widget.firestoreService.getCompanySettingsOnce(widget.businessId);
+    if (settingsDoc.exists) {
+      final settingsData = settingsDoc.data() as Map<String, dynamic>? ?? {};
+      _decimalPlaces = (settingsData['decimal_places'] as num? ?? 2).toInt();
+      if (mounted) setState(() {});
     }
   }
 
@@ -589,7 +622,7 @@ class _OfferDialogState extends State<OfferDialog> {
                                         final price = (data['price'] as num?)?.toDouble() ?? 0.0;
                                         return ListTile(
                                           title: Text(name),
-                                          trailing: Text('\$${price.toStringAsFixed(2)}'),
+                                          trailing: Text(formatArgentineMoney(price, decimalPlaces: _decimalPlaces)),
                                           onTap: () => onSelected(option),
                                         );
                                       },
@@ -654,7 +687,7 @@ class _OfferDialogState extends State<OfferDialog> {
                                   } else {
                                     newPrice = priceInput / (1 + widget.vatRate);
                                   }
-                                  _priceController.text = newPrice.toStringAsFixed(2);
+                                  _priceController.text = newPrice.toStringAsFixed(_decimalPlaces);
                                 }
                               }
                             });

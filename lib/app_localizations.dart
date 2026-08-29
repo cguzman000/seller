@@ -221,7 +221,7 @@ class AppLocalizations {
       'selectPaymentMode': 'Seleccionar Modo de Pago',
       'paySpecificSales': 'Pagar ventas específicas',
       'payOnAccount': 'Abonar cuenta total',//dsfsdfsf
-      'totalPending': 'Total Pendiente',
+      'totalPending': 'Deuda',
       'amountToPay': 'Monto a Pagar',
       'filter': 'Filtrar',
       'ungrouped': 'Sin agrupar',
@@ -527,7 +527,7 @@ class AppLocalizations {
       'selectPaymentMode': 'Select Payment Mode',
       'paySpecificSales': 'Pay specific sales',
       'payOnAccount': 'Pay total account',//fgdg
-      'totalPending': 'Total Pending',
+      'totalPending': 'Debt',
       'amountToPay': 'Amount to Pay',
       'filter': 'Filter',
       'ungrouped': 'Ungrouped',

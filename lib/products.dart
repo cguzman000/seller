@@ -15,6 +15,7 @@ import 'app_localizations.dart';
 import 'util/text_formatter.dart';
 import 'package:seller/pdf_generator.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
+import 'money_format.dart';
 
 class ProductsPage extends StatefulWidget {
   final User user;
@@ -40,6 +41,7 @@ class _ProductsPageState extends State<ProductsPage> { // Este se mantiene como 
   bool _isSelectionMode = false;
   final Set<String> _selectedProductIds = {};
   final Set<String> _selectedCategoryIds = {};
+  int _decimalPlaces = 2;
 
   @override
   void initState() {
@@ -49,12 +51,22 @@ class _ProductsPageState extends State<ProductsPage> { // Este se mantiene como 
         _searchTerm = _searchController.text;
       });
     });
+    _loadCompanySettings();
   }
 
   @override
   void dispose() {
     _searchController.dispose();
     super.dispose();
+  }
+
+  Future<void> _loadCompanySettings() async {
+    final settingsDoc = await _firestoreService.getCompanySettingsOnce(widget.businessId);
+    if (settingsDoc.exists) {
+      final settingsData = settingsDoc.data() as Map<String, dynamic>?;
+      _decimalPlaces = (settingsData?['decimal_places'] as num? ?? 2).toInt();
+      if (mounted) setState(() {});
+    }
   }
 
   void _toggleScanner() {
@@ -567,6 +579,7 @@ class _ProductsPageState extends State<ProductsPage> { // Este se mantiene como 
               selectedCategoryIds: _selectedCategoryIds,
               onToggleProductSelection: _toggleProductSelection,
               onToggleCategorySelection: _toggleCategorySelection,
+              decimalPlaces: _decimalPlaces,
             ),
           ),
         ],
@@ -605,6 +618,7 @@ class ProductList extends StatelessWidget {
   final bool isSelectionMode;
   final Set<String> selectedProductIds;
   final Set<String> selectedCategoryIds;
+  final int decimalPlaces;
   final void Function(String productId, {bool activateSelection}) onToggleProductSelection;
   final void Function(String categoryId, List<DocumentSnapshot> productsInCategory, {bool activateSelection}) onToggleCategorySelection;
 
@@ -623,6 +637,7 @@ class ProductList extends StatelessWidget {
     required this.isSelectionMode,
     required this.selectedProductIds,
     required this.selectedCategoryIds,
+    required this.decimalPlaces,
     required this.onToggleProductSelection,
     required this.onToggleCategorySelection,
   });
@@ -918,8 +933,8 @@ class ProductList extends StatelessWidget {
                 Column(
                   crossAxisAlignment: CrossAxisAlignment.end,
                   children: [
-                    Text('\$${priceWithVat.toStringAsFixed(0)}', style: const TextStyle(fontSize: 16)),
-                    Text('(neto \$${netPrice.toStringAsFixed(2)})', style: const TextStyle(fontSize: 12)),
+                    Text(formatArgentineMoney(priceWithVat, decimalPlaces: decimalPlaces), style: const TextStyle(fontSize: 16)),
+                    Text('(neto ${formatArgentineMoney(netPrice, decimalPlaces: decimalPlaces)})', style: const TextStyle(fontSize: 12)),
                     StreamBuilder<QuerySnapshot>(
                       stream: firestoreService.getOffers(doc.id),
                       builder: (context, snapshot) {
@@ -946,7 +961,7 @@ class ProductList extends StatelessWidget {
                                 border: Border.all(color: Colors.red.shade200),
                               ),
                               child: Text(
-                                'x${oQty.toStringAsFixed(0)}: \$${oGross.toStringAsFixed(0)} \n(Neto: \$${oNet.toStringAsFixed(2)})',
+                                'x${oQty.toStringAsFixed(0)}: ${formatArgentineMoney(oGross, decimalPlaces: decimalPlaces)}\n(Neto: ${formatArgentineMoney(oNet, decimalPlaces: decimalPlaces)})',
                                 style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.red.shade800),
                               ),
                             );
@@ -1065,11 +1080,11 @@ class ProductList extends StatelessWidget {
                               
                               Text.rich(
                                 TextSpan(
-                                  text: 'Precio: \$${(netPrice * (1 + vatRate)).toStringAsFixed(0)} ',
+                                  text: 'Precio: ${formatArgentineMoney(netPrice * (1 + vatRate), decimalPlaces: decimalPlaces)} ',
                                   style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.blue),
                                   children: [
                                     TextSpan(
-                                      text: '(Neto: \$${netPrice.toStringAsFixed(2)})',
+                                      text: '(Neto: ${formatArgentineMoney(netPrice, decimalPlaces: decimalPlaces)})',
                                       style: const TextStyle(fontSize: 20, color: Colors.grey, fontWeight: FontWeight.normal),
                                     ),
                                   ],
@@ -1099,11 +1114,11 @@ class ProductList extends StatelessWidget {
                                           padding: const EdgeInsets.only(bottom: 4.0),
                                           child: Text.rich(
                                             TextSpan(
-                                              text: '• x${oQty.toStringAsFixed(0)}: \$${oGross.toStringAsFixed(0)} ',
+                                              text: '• x${oQty.toStringAsFixed(0)}: ${formatArgentineMoney(oGross, decimalPlaces: decimalPlaces)} ',
                                               style: const TextStyle(fontSize: 18, color: Colors.red, fontWeight: FontWeight.bold),
                                               children: [
                                                 TextSpan(
-                                                  text: '(Neto: \$${oNet.toStringAsFixed(2)})',
+                                                  text: '(Neto: ${formatArgentineMoney(oNet, decimalPlaces: decimalPlaces)})',
                                                   style: const TextStyle(fontSize: 18, color: Colors.grey),
                                                 ),
                                               ],
@@ -1225,6 +1240,7 @@ class _ProductDialogState extends State<ProductDialog> {
   bool _isLoading = true;
   bool _isScanning = false;
   bool _isScanningOffer = false; // Nuevo estado para el escáner en el diálogo de ofertas
+  int _decimalPlaces = 2;
   bool _isSaving = false; // Estado para controlar el proceso de guardado
   Stream<QuerySnapshot>? _offersStream;
   late Stream<QuerySnapshot> _categoriesStream;
@@ -1306,6 +1322,8 @@ class _ProductDialogState extends State<ProductDialog> {
       _vatRateFromSettings = (settingsData?['vat_rate'] as num? ?? 21.0) / 100.0;
       _defaultMarginFromSettings = (settingsData?['profit_margin'] as num? ?? 30.0).toDouble();
       _productImageSize = (settingsData?['product_image_size'] as String? ?? ProductImageSize.medium);
+      _decimalPlaces = (settingsData?['decimal_places'] as num? ?? 2).toInt();
+      if (mounted) setState(() {});
     }
   }
 

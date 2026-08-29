@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 import 'firestore_service.dart';
 import 'app_localizations.dart';
+import 'money_format.dart';
 // Importar para usar SellerBottomNavigationBar
 import 'main.dart';
 
@@ -395,12 +396,8 @@ class _CustomersPageState extends State<CustomersPage> {
                           firestoreService: _firestoreService,
                           businessId: widget.businessId,
                           customerId: doc.id,
-                          onHasDebt: () => IconButton(
-                            icon: const Icon(Icons.money_off, color: Colors.orange),
-                            tooltip: l10n.get('payOnAccount'),
-                            onPressed: () => _startPaymentFlowForCustomer(doc),
-                          ),
-                        ), // Reemplazamos el botón directo por el nuevo widget
+                          onHasDebt: () => _startPaymentFlowForCustomer(doc),
+                        ),
                         onTap: () => _showCustomerDialog(customer: doc),
                       ),
                     );
@@ -526,10 +523,17 @@ class _CustomersPageState extends State<CustomersPage> {
     return pendingList;
   }
 
+  Future<int> _getDecimalPlaces() async {
+    final settingsDoc = await _firestoreService.getCompanySettingsOnce(widget.businessId);
+    final data = settingsDoc.data() as Map<String, dynamic>? ?? {};
+    return (data['decimal_places'] as num?)?.toInt() ?? 0;
+  }
+
   Future<void> _showSpecificSalesDialog(DocumentSnapshot customerDoc, List<_PendingSale> pendingSales) async {
     final l10n = AppLocalizations.of(context);
     final selectedSales = <String, bool>{};
     double totalSelected = 0.0;
+    final decimalPlaces = await _getDecimalPlaces();
 
     await showDialog(
       context: context,
@@ -543,7 +547,10 @@ class _CustomersPageState extends State<CustomersPage> {
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Text('Total Seleccionado: \$${totalSelected.toStringAsFixed(2)}', style: const TextStyle(fontWeight: FontWeight.bold)),
+                    Text(
+                      'Total Seleccionado: ${formatArgentineMoney(totalSelected, decimalPlaces: decimalPlaces)}',
+                      style: const TextStyle(fontWeight: FontWeight.bold),
+                    ),
                     const Divider(),
                     Expanded(
                       child: ListView.builder(
@@ -556,7 +563,13 @@ class _CustomersPageState extends State<CustomersPage> {
                           
                           return CheckboxListTile(
                             title: Text('${l10n.get('saleNumber')}${data['sale_number'] ?? 'S/N'}'),
-                            subtitle: Text('${DateFormat('dd/MM/yyyy').format(date)} - Pend: \$${item.pendingAmount.toStringAsFixed(2)}'),
+                            subtitle: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(DateFormat('dd/MM/yyyy').format(date)),
+                                Text('Pend: ${formatArgentineMoney(item.pendingAmount, decimalPlaces: decimalPlaces)}'),
+                              ],
+                            ),
                             value: selectedSales[item.doc.id] ?? false,
                             onChanged: (val) {
                               setState(() {
@@ -596,6 +609,7 @@ class _CustomersPageState extends State<CustomersPage> {
   Future<void> _showGlobalPaymentDialog(DocumentSnapshot customerDoc, List<_PendingSale> pendingSales) async {
     final l10n = AppLocalizations.of(context);
     final totalDebt = pendingSales.fold(0.0, (prev, s) => prev + s.pendingAmount);
+    final decimalPlaces = await _getDecimalPlaces();
     final controller = TextEditingController();
 
     await showDialog(
@@ -605,7 +619,10 @@ class _CustomersPageState extends State<CustomersPage> {
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Text('${l10n.get('totalPending')}: \$${totalDebt.toStringAsFixed(2)}', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+            Text(
+              '${l10n.get('totalPending')}: ${formatArgentineMoney(totalDebt, decimalPlaces: decimalPlaces)}',
+              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+            ),
             const SizedBox(height: 16),
             TextField(
               controller: controller,
@@ -639,6 +656,7 @@ class _CustomersPageState extends State<CustomersPage> {
 
   Future<void> _showFinalizePaymentDialog(DocumentSnapshot customerDoc, double amount, List<DocumentSnapshot> salesToPay) async {
     final l10n = AppLocalizations.of(context);
+    final decimalPlaces = await _getDecimalPlaces();
     String paymentType = 'Efectivo';
 
     await showDialog(
@@ -652,7 +670,10 @@ class _CustomersPageState extends State<CustomersPage> {
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text('${l10n.get('amountToPay')}: \$${amount.toStringAsFixed(2)}', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                  Text(
+                    '${l10n.get('amountToPay')}: ${formatArgentineMoney(amount, decimalPlaces: decimalPlaces)}',
+                    style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                  ),
                   const SizedBox(height: 16),
                   Text(l10n.get('paymentMethod'), style: const TextStyle(fontWeight: FontWeight.bold)),
                   RadioGroup<String>(
@@ -719,17 +740,60 @@ class _CustomersPageState extends State<CustomersPage> {
   }
 }
 
+class _DebtSummary {
+  final double totalDebt;
+  final int decimalPlaces;
+
+  const _DebtSummary({required this.totalDebt, required this.decimalPlaces});
+}
+
 class _PendingSale {
   final DocumentSnapshot doc;
   final double pendingAmount;
   _PendingSale(this.doc, this.pendingAmount);
 }
 
+Widget buildDebtAmountText(
+  double totalDebt, {
+  required VoidCallback onTap,
+  required String debtLabel,
+  required int decimalPlaces,
+}) {
+  final formattedAmount = formatArgentineMoney(totalDebt, decimalPlaces: decimalPlaces);
+
+  return InkWell(
+    onTap: onTap,
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.end,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text(
+          '$debtLabel:',
+          style: const TextStyle(
+            fontSize: 11,
+            color: Colors.black87,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+        const SizedBox(height: 2),
+        Text(
+          formattedAmount,
+          style: const TextStyle(
+            color: Colors.red,
+            fontWeight: FontWeight.bold,
+            fontSize: 14,
+          ),
+        ),
+      ],
+    ),
+  );
+}
+
 class CustomerDebtStatus extends StatefulWidget {
   final FirestoreService firestoreService;
   final String businessId;
   final String customerId;
-  final Widget Function() onHasDebt;
+  final VoidCallback onHasDebt;
 
   const CustomerDebtStatus({
     super.key,
@@ -744,36 +808,55 @@ class CustomerDebtStatus extends StatefulWidget {
 }
 
 class _CustomerDebtStatusState extends State<CustomerDebtStatus> {
-  late Future<bool> _hasDebtFuture;
+  late Future<_DebtSummary> _debtFuture;
 
   @override
   void initState() {
     super.initState();
-    _hasDebtFuture = _checkDebt();
+    _debtFuture = _checkDebt();
   }
 
-  Future<bool> _checkDebt() async {
+  Future<_DebtSummary> _checkDebt() async {
     final salesSnapshot = await widget.firestoreService.getSalesForCustomer(widget.businessId, widget.customerId).first;
+    double totalDebt = 0.0;
+
     for (final saleDoc in salesSnapshot.docs) {
       final paymentsSnapshot = await widget.firestoreService.getPaymentsForSale(saleDoc.id).first;
       final totalAmount = (saleDoc.data() as Map<String, dynamic>)['totalAmount'] as num? ?? 0.0;
       final paidAmount = paymentsSnapshot.docs.fold<double>(0.0, (acc, doc) => acc + ((doc.data() as Map<String, dynamic>)['amount'] as num? ?? 0.0));
-      if (totalAmount - paidAmount > 0.01) return true;
+      final pendingAmount = totalAmount - paidAmount;
+      if (pendingAmount > 0.01) {
+        totalDebt += pendingAmount;
+      }
     }
-    return false;
+
+    final settingsDoc = await widget.firestoreService.getCompanySettingsOnce(widget.businessId);
+    final data = settingsDoc.data() as Map<String, dynamic>? ?? {};
+    final decimalPlaces = (data['decimal_places'] as num?)?.toInt() ?? 0;
+
+    return _DebtSummary(totalDebt: totalDebt, decimalPlaces: decimalPlaces);
   }
 
   @override
   Widget build(BuildContext context) {
-    return FutureBuilder<bool>(
-      future: _hasDebtFuture,
+    return FutureBuilder<_DebtSummary>(
+      future: _debtFuture,
       builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.done && snapshot.data == true) {
-          return widget.onHasDebt();
-        }
         final l10n = AppLocalizations.of(context);
-        // Mostrar icono verde indicando que está al día
-        if (snapshot.connectionState == ConnectionState.done && snapshot.data == false) {
+
+        if (snapshot.connectionState == ConnectionState.done) {
+          final summary = snapshot.data ?? const _DebtSummary(totalDebt: 0.0, decimalPlaces: 0);
+          final totalDebt = summary.totalDebt;
+
+          if (totalDebt > 0.01) {
+            return buildDebtAmountText(
+              totalDebt,
+              onTap: widget.onHasDebt,
+              debtLabel: l10n.get('totalPending'),
+              decimalPlaces: summary.decimalPlaces,
+            );
+          }
+
           return IconButton(
             icon: const Icon(Icons.check_circle, color: Colors.green),
             tooltip: l10n.get('allUpToDate'),
@@ -783,7 +866,7 @@ class _CustomerDebtStatusState extends State<CustomerDebtStatus> {
           );
         }
 
-        return const SizedBox(width: 48); // Espacio vacío si está cargando
+        return const SizedBox(width: 48);
       },
     );
   }

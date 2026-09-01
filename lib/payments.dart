@@ -344,15 +344,18 @@ class _PaymentsPageState extends State<PaymentsPage> {
       icon: const Icon(Icons.filter_list),
       onSelected: _handleFilterSelection,
       itemBuilder: (context) => [
+        PopupMenuItem(value: 'clear', child: Text(l10n.get('filterAll'))),
+        const PopupMenuDivider(),
+
         PopupMenuItem(value: 'today', child: Text(l10n.get('filterToday'))),
         PopupMenuItem(value: 'thisWeek', child: Text(l10n.get('filterThisWeek'))),
         PopupMenuItem(value: 'thisMonth', child: Text(l10n.get('filterThisMonth'))),
         PopupMenuItem(value: 'custom', child: Text(l10n.get('filterCustom'))),
         const PopupMenuDivider(),
         PopupMenuItem(value: 'customer', child: Text(l10n.get('selectCustomer'))),
-        PopupMenuItem(value: 'method', child: Text(l10n.get('paymentMethod'))),
         const PopupMenuDivider(),
-        PopupMenuItem(value: 'clear', child: Text(l10n.get('filterAll'))),
+
+        PopupMenuItem(value: 'method', child: Text(l10n.get('paymentMethod'))),
         if (widget.role == 'admin') ...[
           const PopupMenuDivider(),
           PopupMenuItem(value: 'seller', child: Text(l10n.get('filterBySeller'))),

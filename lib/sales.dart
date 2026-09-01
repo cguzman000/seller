@@ -7,7 +7,6 @@ import 'app_localizations.dart';
 import 'firestore_service.dart';
 import 'add_sale_page.dart';
 import 'money_format.dart';
-import 'money_format.dart';
 
 class SalesPage extends StatefulWidget {
   final User user;
@@ -362,6 +361,8 @@ class _SalesPageState extends State<SalesPage> {
       icon: Icon(Icons.filter_list, color: hasActiveFilters ? Colors.orange : null),
       onSelected: _handleFilterSelection,
       itemBuilder: (context) => [
+        PopupMenuItem(value: 'clear', child: Text(l10n.get('filterAll'))),
+        const PopupMenuDivider(),
         PopupMenuItem(value: 'today', child: Text(l10n.get('filterToday'))),
         PopupMenuItem(value: 'week', child: Text(l10n.get('filterThisWeek'))),
         PopupMenuItem(value: 'month', child: Text(l10n.get('filterThisMonth'))),
@@ -369,10 +370,9 @@ class _SalesPageState extends State<SalesPage> {
         PopupMenuItem(value: 'custom', child: Text(l10n.get('filterCustomEllipsis'))),
         const PopupMenuDivider(),
         PopupMenuItem(value: 'customer', child: Text(l10n.get('selectCustomer'))),
+        const PopupMenuDivider(),
             PopupMenuItem(value: 'delivered', child: Text(l10n.get('delivered'))),
             PopupMenuItem(value: 'pending', child: Text(l10n.get('pendingDelivery'))),
-        const PopupMenuDivider(),
-        PopupMenuItem(value: 'clear', child: Text(l10n.get('filterAll'))),
         if (canFilterBySeller) ...[
           const PopupMenuDivider(),
           PopupMenuItem(value: 'seller', child: Text(l10n.get('filterBySeller'))),
@@ -700,9 +700,9 @@ class _SaleListItem extends StatelessWidget {
                         children: [
                           const Icon(Icons.cancel, color: Colors.red, size: 14),
                           const SizedBox(width: 4),
-                          const Text(
-                            'Sin Pagar',
-                            style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold, fontSize: 12),
+                          Text(
+                            l10n.get('notPaidLabel'),
+                            style: const TextStyle(color: Colors.red, fontWeight: FontWeight.bold, fontSize: 12),
                           ),
                         ],
                       ),

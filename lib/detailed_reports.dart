@@ -8,7 +8,6 @@ import 'main.dart'; // Importar para usar SellerBottomNavigationBar
 import 'util/text_formatter.dart';
 import 'app_localizations.dart';
 import 'pdf_generator.dart';
-import 'money_format.dart';
 import 'dart:typed_data';
 import 'package:flutter/rendering.dart';
 import 'dart:ui' as ui;

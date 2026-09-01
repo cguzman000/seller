@@ -642,6 +642,12 @@ class ProductList extends StatelessWidget {
     required this.onToggleCategorySelection,
   });
 
+  String _formatStock(dynamic stock) {
+    if (stock == null) return '0';
+    final stockValue = (stock is num) ? stock.toDouble() : double.tryParse(stock.toString()) ?? 0.0;
+    return stockValue.toStringAsFixed(decimalPlaces);
+  }
+
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
@@ -925,7 +931,7 @@ class ProductList extends StatelessWidget {
                         ],
                       ),
                       Text(categoryName ?? '', style: Theme.of(context).textTheme.bodySmall),
-                      Text('Stock: ${data['stock'] ?? 0}'),
+                      Text('Stock: ${_formatStock(data['stock'])}'),
                     ],
                   ),
                 ),
@@ -1240,7 +1246,6 @@ class _ProductDialogState extends State<ProductDialog> {
   bool _isLoading = true;
   bool _isScanning = false;
   bool _isScanningOffer = false; // Nuevo estado para el escáner en el diálogo de ofertas
-  int _decimalPlaces = 2;
   bool _isSaving = false; // Estado para controlar el proceso de guardado
   Stream<QuerySnapshot>? _offersStream;
   late Stream<QuerySnapshot> _categoriesStream;
@@ -1322,7 +1327,6 @@ class _ProductDialogState extends State<ProductDialog> {
       _vatRateFromSettings = (settingsData?['vat_rate'] as num? ?? 21.0) / 100.0;
       _defaultMarginFromSettings = (settingsData?['profit_margin'] as num? ?? 30.0).toDouble();
       _productImageSize = (settingsData?['product_image_size'] as String? ?? ProductImageSize.medium);
-      _decimalPlaces = (settingsData?['decimal_places'] as num? ?? 2).toInt();
       if (mounted) setState(() {});
     }
   }

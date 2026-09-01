@@ -24,6 +24,8 @@ class PdfGenerator {
     String? catalogTitle,
     String? categoryFilterName,
     String? supplierFilterName,
+    bool showPricePerBox = false,
+    int decimalPlaces = 2,
   }) async {
     final pdf = pw.Document();
     final now = DateTime.now();
@@ -86,7 +88,7 @@ class PdfGenerator {
       final categoryName = categoryMap[data['categoryId']] ?? '${l10n.get('no')} ${l10n.get('category')}';
       final description = data['description'] as String?;
       final netPrice = (data['price'] as num?)?.toDouble() ?? 0.0;
-      final priceWithVat = netPrice * (1 + vatRate);
+      final unitsBox = (data['units_box'] as num?)?.toInt() ?? 0;
 
       final productOffers = offersByProduct[doc.id] ?? [];
 
@@ -99,11 +101,45 @@ class PdfGenerator {
         return qtyA.compareTo(qtyB);
       });
 
+      // Calcular el precio a mostrar (unitario o por caja)
+      double displayPrice = netPrice;
+      if (showPricePerBox && unitsBox > 1) {
+        // Precio base por caja (sin oferta)
+        displayPrice = netPrice * unitsBox;
+
+        // Aplicar lógica de ofertas:
+        // - Si unidades_oferta < unidades_por_caja: usar precio_oferta * unidades_por_caja
+        // - Si unidades_oferta >= unidades_por_caja: usar precio_unitario * unidades_por_caja
+        
+        if (productOffers.isNotEmpty) {
+          for (var offerDoc in productOffers) {
+            final offerData = offerDoc.data() as Map<String, dynamic>;
+            final qty = (offerData['quantity'] as num?)?.toDouble() ?? 0.0;
+            final offerPrice = (offerData['price'] as num?)?.toDouble() ?? 0.0;
+
+            // Si la oferta es para menos unidades que una caja, usar ese precio multiplicado por unitsBox
+            if (qty < unitsBox && qty > 0) {
+              displayPrice = offerPrice * unitsBox;
+              break; // Usar la primera oferta aplicable
+            }
+          }
+        }
+      }
+
+      final displayPriceWithVat = displayPrice * (1 + vatRate);
+
       final List<pw.Widget> priceWidgets = [
-        pw.Text('\$${priceWithVat.toStringAsFixed(0)}'),
-        pw.Text('(Neto: \$${netPrice.toStringAsFixed(2)})',
+        pw.Text('\$${displayPriceWithVat.toStringAsFixed(decimalPlaces)}'),
+        pw.Text('(Neto: \$${displayPrice.toStringAsFixed(decimalPlaces)})',
             style: const pw.TextStyle(fontSize: 8, color: PdfColors.grey600)),
       ];
+
+      if (showPricePerBox && unitsBox > 1) {
+        priceWidgets.add(
+          pw.Text('por caja',
+              style: pw.TextStyle(fontSize: 8, fontWeight: pw.FontWeight.bold, color: PdfColors.blue900)),
+        );
+      }
 
       if (productOffers.isNotEmpty) {
         priceWidgets.add(pw.SizedBox(height: 2));
@@ -114,6 +150,16 @@ class PdfGenerator {
           final qty = (offerData['quantity'] as num?)?.toDouble() ?? 0.0;
           final offerNetPrice = (offerData['price'] as num?)?.toDouble() ?? 0.0;
           final offerPriceWithVat = offerNetPrice * (1 + vatRate);
+          
+          // Si está en modo precio por caja y la oferta es >= unitsBox, mostrar en cajas
+          String displayQty;
+          if (showPricePerBox && unitsBox > 1 && qty >= unitsBox) {
+            final numCajas = (qty / unitsBox).toStringAsFixed(0);
+            displayQty = '$numCajas cajas';
+          } else {
+            displayQty = 'x${qty.toStringAsFixed(0)}';
+          }
+          
           priceWidgets.add(
             pw.Container(
               margin: const pw.EdgeInsets.only(top: 2),
@@ -124,7 +170,7 @@ class PdfGenerator {
                 border: pw.Border.all(color: PdfColors.red200),
               ),
               child: pw.Text(
-                'x${qty.toStringAsFixed(0)}: \$${offerPriceWithVat.toStringAsFixed(0)} \n(Neto: \$${offerNetPrice.toStringAsFixed(2)})',
+                '$displayQty: \$${offerPriceWithVat.toStringAsFixed(decimalPlaces)} \n(Neto: \$${offerNetPrice.toStringAsFixed(decimalPlaces)})',
                 style: pw.TextStyle(fontSize: 8, fontWeight: pw.FontWeight.bold, color: PdfColors.red800),
               ),
             ),
@@ -159,7 +205,6 @@ class PdfGenerator {
         }
       }
 
-      final unitsBox = (data['units_box'] as num?)?.toInt() ?? 0;
       final productName = data['name'] ?? 'Sin nombre';
       final productDisplayName = unitsBox > 1
           ? '$productName ${l10n.get('unitsPerBox').replaceFirst('{count}', unitsBox.toString())}'

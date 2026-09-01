@@ -42,6 +42,7 @@ class _ProductsPageState extends State<ProductsPage> { // Este se mantiene como 
   final Set<String> _selectedProductIds = {};
   final Set<String> _selectedCategoryIds = {};
   int _decimalPlaces = 2;
+  bool _showPricePerBox = false;
 
   @override
   void initState() {
@@ -288,6 +289,8 @@ class _ProductsPageState extends State<ProductsPage> { // Este se mantiene como 
         companyName: companyName,
         sellerName: sellerName,
         sellerPhone: sellerPhone,
+        showPricePerBox: _showPricePerBox,
+        decimalPlaces: _decimalPlaces,
       );
     } catch (e) {
       if (mounted) {
@@ -395,6 +398,15 @@ class _ProductsPageState extends State<ProductsPage> { // Este se mantiene como 
       appBar: AppBar(
         title: Text(l10n.get('products')),
         actions: [
+          IconButton(
+            icon: Icon(_showPricePerBox ? Icons.inventory_2 : Icons.inventory_2_outlined),
+            onPressed: () {
+              setState(() {
+                _showPricePerBox = !_showPricePerBox;
+              });
+            },
+            tooltip: _showPricePerBox ? 'Ver precio unitario' : 'Ver precio por caja',
+          ),
           IconButton(
             icon: const Icon(Icons.print_outlined),
             onPressed: () => _printProducts(ref),
@@ -580,6 +592,7 @@ class _ProductsPageState extends State<ProductsPage> { // Este se mantiene como 
               onToggleProductSelection: _toggleProductSelection,
               onToggleCategorySelection: _toggleCategorySelection,
               decimalPlaces: _decimalPlaces,
+              showPricePerBox: _showPricePerBox,
             ),
           ),
         ],
@@ -619,6 +632,7 @@ class ProductList extends StatelessWidget {
   final Set<String> selectedProductIds;
   final Set<String> selectedCategoryIds;
   final int decimalPlaces;
+  final bool showPricePerBox;
   final void Function(String productId, {bool activateSelection}) onToggleProductSelection;
   final void Function(String categoryId, List<DocumentSnapshot> productsInCategory, {bool activateSelection}) onToggleCategorySelection;
 
@@ -638,6 +652,7 @@ class ProductList extends StatelessWidget {
     required this.selectedProductIds,
     required this.selectedCategoryIds,
     required this.decimalPlaces,
+    required this.showPricePerBox,
     required this.onToggleProductSelection,
     required this.onToggleCategorySelection,
   });
@@ -646,6 +661,38 @@ class ProductList extends StatelessWidget {
     if (stock == null) return '0';
     final stockValue = (stock is num) ? stock.toDouble() : double.tryParse(stock.toString()) ?? 0.0;
     return stockValue.toStringAsFixed(decimalPlaces);
+  }
+
+  double _getPriceForDisplay(double netPrice, double vatRate, QuerySnapshot? offersSnapshot, int? unitsBox) {
+    if (!showPricePerBox || unitsBox == null || unitsBox <= 1) {
+      return netPrice;
+    }
+
+    // Precio base por caja (sin oferta)
+    double pricePerBox = netPrice * unitsBox;
+
+    // Si no hay ofertas, retornar precio normal por caja
+    if (offersSnapshot == null || offersSnapshot.docs.isEmpty) {
+      return pricePerBox;
+    }
+
+    // Si hay ofertas, aplicar la lógica:
+    // - Si unidades_oferta < unidades_por_caja: usar precio_oferta * unidades_por_caja
+    // - Si unidades_oferta >= unidades_por_caja: usar precio_unitario * unidades_por_caja (las ofertas se muestran aparte)
+    
+    for (var offer in offersSnapshot.docs) {
+      final oData = offer.data() as Map<String, dynamic>;
+      final oQty = (oData['quantity'] is num) ? (oData['quantity'] as num).toDouble() : double.tryParse(oData['quantity']?.toString() ?? '0') ?? 0.0;
+      final oNet = (oData['price'] is num) ? (oData['price'] as num).toDouble() : double.tryParse(oData['price']?.toString() ?? '0') ?? 0.0;
+
+      // Si la oferta es para menos unidades que una caja, usar ese precio multiplicado por unitsBox
+      if (oQty <= unitsBox && oQty > 0) {
+        return oNet * unitsBox;
+      }
+    }
+
+    // Si no hay oferta aplicable (todas >= unitsBox), retornar precio normal por caja
+    return pricePerBox;
   }
 
   @override
@@ -847,7 +894,6 @@ class ProductList extends StatelessWidget {
     final netPrice = (data['price'] is num)
         ? (data['price'] as num).toDouble()
         : double.tryParse(data['price']?.toString() ?? '0') ?? 0.0;
-    final priceWithVat = netPrice * (1 + vatRate);
     final categoryId = data['categoryId']?.toString();
     final l10n = AppLocalizations.of(context);
     final categoryName = categoryId != null ? categoryMap[categoryId] : '${l10n.get('no')} ${l10n.get('category')}';
@@ -882,24 +928,45 @@ class ProductList extends StatelessWidget {
                   ),
                 GestureDetector(
                   onTap: () => _showLargeImageDialog(context, allProducts, allProducts.indexOf(doc)),
-                  child: imageUrl != null
-                      ? ClipRRect(
-                          borderRadius: BorderRadius.circular(8.0),
-                          child: Image.network(
-                            imageUrl,
-                            width: 75,
-                            height: 75,
-                            fit: BoxFit.cover,
-                            errorBuilder: (context, error, stackTrace) {
-                              return Container(
+                  child: Stack(
+                    children: [
+                      imageUrl != null
+                          ? ClipRRect(
+                              borderRadius: BorderRadius.circular(8.0),
+                              child: Image.network(
+                                imageUrl,
                                 width: 75,
                                 height: 75,
-                                color: Colors.grey.shade200,
-                                child: const Icon(Icons.broken_image, color: Colors.grey, size: 40),
-                              );
-                            },
-                          ))
-                      : Container(width: 75, height: 75, color: Colors.grey.shade200, child: const Icon(Icons.image, size: 40, color: Colors.grey)),
+                                fit: BoxFit.cover,
+                                errorBuilder: (context, error, stackTrace) {
+                                  return Container(
+                                    width: 75,
+                                    height: 75,
+                                    color: Colors.grey.shade200,
+                                    child: const Icon(Icons.broken_image, color: Colors.grey, size: 40),
+                                  );
+                                },
+                              ))
+                          : Container(width: 75, height: 75, color: Colors.grey.shade200, child: const Icon(Icons.image, size: 40, color: Colors.grey)),
+                      if (showPricePerBox)
+                        Positioned(
+                          top: 4,
+                          right: 4,
+                          child: Container(
+                            decoration: BoxDecoration(
+                              color: Colors.blue.shade700,
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            padding: const EdgeInsets.all(2),
+                            child: const Icon(
+                              Icons.inventory_2, //caja que aparece en precion por imagen
+                              color: Colors.white,
+                              size: 16,
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
                 ),
                 const SizedBox(width: 16),
                 Expanded(
@@ -939,39 +1006,65 @@ class ProductList extends StatelessWidget {
                 Column(
                   crossAxisAlignment: CrossAxisAlignment.end,
                   children: [
-                    Text(formatArgentineMoney(priceWithVat, decimalPlaces: decimalPlaces), style: const TextStyle(fontSize: 16)),
-                    Text('(neto ${formatArgentineMoney(netPrice, decimalPlaces: decimalPlaces)})', style: const TextStyle(fontSize: 12)),
                     StreamBuilder<QuerySnapshot>(
                       stream: firestoreService.getOffers(doc.id),
-                      builder: (context, snapshot) {
-                        if (!snapshot.hasData || snapshot.data!.docs.isEmpty) return const SizedBox.shrink();
+                      builder: (context, offersSnapshot) {
+                        final displayPrice = _getPriceForDisplay(netPrice, vatRate, offersSnapshot.data, unitsBox);
+                        final displayPriceWithVat = displayPrice * (1 + vatRate);
+                        
                         return Column(
                           crossAxisAlignment: CrossAxisAlignment.end,
                           children: [
-                            Text(l10n.get('offers'), style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.red.shade800)),
-                            ...snapshot.data!.docs.map((offer) {
-                            final oData = offer.data() as Map<String, dynamic>;
-                            final oQty = (oData['quantity'] is num)
-                                ? (oData['quantity'] as num).toDouble()
-                                : double.tryParse(oData['quantity']?.toString() ?? '0') ?? 0.0;
-                            final oNet = (oData['price'] is num)
-                                ? (oData['price'] as num).toDouble()
-                                : double.tryParse(oData['price']?.toString() ?? '0') ?? 0.0;
-                            final oGross = oNet * (1 + vatRate);
-                            return Container(
-                              margin: const EdgeInsets.only(top: 2),
-                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                              decoration: BoxDecoration(
-                                color: Colors.red.shade50,
-                                borderRadius: BorderRadius.circular(8),
-                                border: Border.all(color: Colors.red.shade200),
+                            Text(formatArgentineMoney(displayPriceWithVat, decimalPlaces: decimalPlaces), style: const TextStyle(fontSize: 16)),
+                            Text('(neto ${formatArgentineMoney(displayPrice, decimalPlaces: decimalPlaces)})', style: const TextStyle(fontSize: 12)),
+                            if (showPricePerBox && unitsBox != null && unitsBox > 1)
+                              Text(
+                                'por caja',
+                                style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.blue.shade700),
                               ),
-                              child: Text(
-                                'x${oQty.toStringAsFixed(0)}: ${formatArgentineMoney(oGross, decimalPlaces: decimalPlaces)}\n(Neto: ${formatArgentineMoney(oNet, decimalPlaces: decimalPlaces)})',
-                                style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.red.shade800),
+                            if (offersSnapshot.hasData && offersSnapshot.data!.docs.isNotEmpty)
+                              Padding(
+                                padding: const EdgeInsets.only(top: 4.0),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.end,
+                                  children: [
+                                    Text(l10n.get('offers'), style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.red.shade800)),
+                                    ...offersSnapshot.data!.docs.map((offer) {
+                                      final oData = offer.data() as Map<String, dynamic>;
+                                      final oQty = (oData['quantity'] is num)
+                                          ? (oData['quantity'] as num).toDouble()
+                                          : double.tryParse(oData['quantity']?.toString() ?? '0') ?? 0.0;
+                                      final oNet = (oData['price'] is num)
+                                          ? (oData['price'] as num).toDouble()
+                                          : double.tryParse(oData['price']?.toString() ?? '0') ?? 0.0;
+                                      final oGross = oNet * (1 + vatRate);
+                                      
+                                      // Si está en modo precio por caja y la oferta es >= unitsBox, mostrar en cajas
+                                      String displayQty;
+                                      if (showPricePerBox && unitsBox != null && unitsBox > 1 && oQty >= unitsBox) {
+                                        final numCajas = (oQty / unitsBox).toStringAsFixed(0);
+                                        displayQty = '$numCajas cajas';
+                                      } else {
+                                        displayQty = 'x${oQty.toStringAsFixed(0)}';
+                                      }
+                                      
+                                      return Container(
+                                        margin: const EdgeInsets.only(top: 2),
+                                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                        decoration: BoxDecoration(
+                                          color: Colors.red.shade50,
+                                          borderRadius: BorderRadius.circular(8),
+                                          border: Border.all(color: Colors.red.shade200),
+                                        ),
+                                        child: Text(
+                                          '$displayQty: ${formatArgentineMoney(oGross, decimalPlaces: decimalPlaces)}\n(Neto: ${formatArgentineMoney(oNet, decimalPlaces: decimalPlaces)})',
+                                          style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.red.shade800),
+                                        ),
+                                      );
+                                    }),
+                                  ],
+                                ),
                               ),
-                            );
-                          }),
                           ],
                         );
                       },

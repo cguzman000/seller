@@ -188,17 +188,158 @@ class PdfGenerator {
         ),
       );
 
+      // Si está en modo precio por caja y el placeholder, agregar indicador
+      if (showPricePerBox && unitsBox > 1) {
+        imageWidget = pw.Stack(
+          children: [
+            imageWidget,
+            pw.Positioned(
+              top: 1,
+              right: 1,
+              child: pw.Container(
+                width: 20,
+                height: 20,
+                decoration: pw.BoxDecoration(
+                  border: pw.Border.all(
+                    color: PdfColors.blue900,
+                    width: 1.2,
+                  ),
+                  borderRadius: const pw.BorderRadius.all(pw.Radius.circular(2)),
+                ),
+                child: pw.Stack(
+                  children: [
+                    // Tapa (ancho 1.2, alto 0.25 - proporcional)
+                    pw.Positioned(
+                      top: 0,
+                      left: -1,
+                      child: pw.Container(
+                        width: 22,
+                        height: 5,
+                        decoration: pw.BoxDecoration(
+                          color: PdfColors.blue300,
+                          borderRadius: const pw.BorderRadius.only(
+                            topLeft: pw.Radius.circular(1.5),
+                            topRight: pw.Radius.circular(1.5),
+                          ),
+                        ),
+                        child: pw.Center(
+                          child: pw.Container(
+                            width: 2,
+                            height: 3,
+                            decoration: pw.BoxDecoration(
+                              color: PdfColors.blue900,
+                              borderRadius: const pw.BorderRadius.all(pw.Radius.circular(0.5)),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                    // Cuerpo caja (ancho 1, alto 0.75 - proporcional)
+                    pw.Positioned(
+                      top: 5,
+                      left: 1,
+                      child: pw.Container(
+                        width: 18,
+                        height: 14,
+                        decoration: pw.BoxDecoration(
+                          color: PdfColors.blue600,
+                          border: pw.Border(
+                            top: pw.BorderSide(color: PdfColors.blue900, width: 0.8),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        );
+      }
+
       if (data['imageUrl'] != null && (data['imageUrl'] as String).isNotEmpty) {
         try {
           final provider = await networkImage(data['imageUrl']);
+          pw.Widget imageContent = pw.ClipRRect(
+            horizontalRadius: 8,
+            verticalRadius: 8,
+            child: pw.Image(provider, fit: pw.BoxFit.cover),
+          );
+
+          // Si está en modo precio por caja, agregar indicador de caja
+          if (showPricePerBox && unitsBox > 1) {
+            imageContent = pw.Stack(
+              children: [
+                imageContent,
+                pw.Positioned(
+                  top: 1,
+                  right: 1,
+                  child: pw.Container(
+                    width: 20,
+                    height: 20,
+                    decoration: pw.BoxDecoration(
+                      border: pw.Border.all(
+                        color: PdfColors.blue900,
+                        width: 1.2,
+                      ),
+                      borderRadius: const pw.BorderRadius.all(pw.Radius.circular(2)),
+                    ),
+                    child: pw.Stack(
+                      children: [
+                        // Tapa (ancho 1.2, alto 0.25 - proporcional)
+                        pw.Positioned(
+                          top: 0,
+                          left: -1,
+                          child: pw.Container(
+                            width: 22,
+                            height: 5,
+                            decoration: pw.BoxDecoration(
+                              color: PdfColors.brown300,
+                              borderRadius: const pw.BorderRadius.only(
+                                topLeft: pw.Radius.circular(1.5),
+                                topRight: pw.Radius.circular(1.5),
+                              ),
+                            ),
+                            
+                          ),
+                        ),
+                        // Cuerpo caja (ancho 1, alto 0.75 - proporcional)
+                        pw.Positioned(
+                          top: 5,
+                          left: 1,
+                          child: pw.Container(
+                            width: 18,
+                            height: 14,
+                            decoration: pw.BoxDecoration(
+                              color: PdfColors.brown300,
+                              border: pw.Border(
+                                top: pw.BorderSide(color: PdfColors.brown700, width: 0.8),
+                              ),
+                            ),
+                            child: pw.Center(
+                              child: pw.Container(
+                                width: 5,
+                                height: 2,
+                                decoration: pw.BoxDecoration(
+                                  color: PdfColors.brown900,
+                                  borderRadius: const pw.BorderRadius.all(pw.Radius.circular(0.5)),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            );
+          }
+
           imageWidget = pw.SizedBox(
             width: 75,
             height: 75,
-            child: pw.ClipRRect(
-              horizontalRadius: 8, // Radio para redondear las esquinas
-              verticalRadius: 8,  // Radio para redondear las esquinas
-              child: pw.Image(provider, fit: pw.BoxFit.cover),
-            ),
+            child: imageContent,
           );
         } catch (e) {
           // Si falla la carga de la imagen, se usará el placeholder gris de arriba

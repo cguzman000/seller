@@ -482,11 +482,12 @@ class _ProductSelectionDialogState extends State<ProductSelectionDialog> {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     return Dialog(
-      child: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
+      child: SingleChildScrollView(
+        child: Padding(
+          padding: const EdgeInsets.all(16.0),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
             Text(l10n.get('selectProduct'), style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
             const SizedBox(height: 16),
             TextField(
@@ -534,7 +535,8 @@ class _ProductSelectionDialogState extends State<ProductSelectionDialog> {
               ),
             ),
             TextButton(onPressed: () => Navigator.pop(context), child: Text(l10n.get('cancel'))),
-          ],
+            ],
+          ),
         ),
       ),
     );
@@ -575,11 +577,12 @@ class _CustomerSelectionDialogState extends State<CustomerSelectionDialog> {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     return Dialog(
-      child: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
+      child: SingleChildScrollView(
+        child: Padding(
+          padding: const EdgeInsets.all(16.0),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
             Text(l10n.get('selectCustomer'), style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
             const SizedBox(height: 16),
             TextField(
@@ -628,7 +631,8 @@ class _CustomerSelectionDialogState extends State<CustomerSelectionDialog> {
               ),
             ),
             TextButton(onPressed: () => Navigator.pop(context), child: Text(l10n.get('cancel'))),
-          ],
+            ],
+          ),
         ),
       ),
     );

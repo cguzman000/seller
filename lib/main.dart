@@ -45,11 +45,19 @@ void main() async {
   } else {
     await Firebase.initializeApp();
   }
- if (!kIsWeb) {
+  if (!kIsWeb) {
     await FirebaseAppCheck.instance.activate(
       // Usamos 'debug' para desarrollo. Para producción usa 'AndroidProvider.playIntegrity'.
-      androidProvider: AndroidProvider.debug,
-      appleProvider: AppleProvider.appAttest,
+      androidProvider: AndroidProvider.playIntegrity,
+      //appleProvider: AppleProvider.appAttest,
+    );
+
+    // Espera el primer token antes de que la app consulte Firestore.
+    // Sin esta espera, una consulta inicial puede enviarse antes de que el
+    // proveedor Play Integrity haya terminado de preparar el token.
+    final appCheckToken = await FirebaseAppCheck.instance.getToken(true);
+    debugPrint(
+      'Firebase App Check inicializado: token ${appCheckToken == null ? 'no disponible' : 'obtenido'}',
     );
   }
 
